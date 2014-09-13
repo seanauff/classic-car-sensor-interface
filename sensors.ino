@@ -5,6 +5,8 @@
 #include <EEPROM.h>
 #include <math.h>
 #include <Time.h>
+#include <Wire.h>
+#include <DS1307RTC.h>
 
 // EEPROM memory addresses
 const int lcdContrastAddress = 1;
@@ -13,14 +15,17 @@ const int lcdHueAddress = 3;
 const int useCelciusAddress = 4;
 const int lcdAutoDimAddress = 5;
 const int lcdBigFontAddress = 6;
+const int engineCylindersAddress = 7;
 
 // digital pins
 const int switchPin = 0; // momentary switch on interrupt 0 (digital pin 2)
 const int tachPin = 1; // tach signal on interrupt 1 (digital pin 3)
 const int ignitionPin = 4; // ignition signal on interrupt 4 (digital pin 19)
 const int lcdContrastPin = 4; // contrast adjust on digital pin 4 (PWM)
-const int encoderPin1 = 20; // A leg of encoder on digital pin 20 (interrupt 3)
-const int encoderPin2 = 21; // B leg of encoder on digital pin 21 (interrupt 2)
+const int encoderPin1 = 18; // A leg of encoder on digital pin 18 (interrupt 5)
+const int encoderPin2 = 19; // B leg of encoder on digital pin 19 (interrupt 4)
+const int wireSDAPin = 20;
+const int wireSCLPin = 21;
 const int igntionPin = 4; // ignition signal on interrupt 4 (digital pin 19)
 const int oneWirePin = 24; // data pin for 1-Wire devices
 const int lcdD7Pin = 38; // LCD D7 pin
@@ -63,8 +68,8 @@ DeviceAddress transTempDigital = {0x28, 0xFF, 0xD5, 0x33, 0x2B, 0x04, 0x00, 0x6A
 // rotary encoder setup
 Encoder modeSwitch(encoderPin1,encoderPin2);
 const int modeMin = 1;
-const int modeMax = 12; // number of modes
-
+const int modeMax = 13; // number of modes
+// modes - this sets order
 const int modeClock = 1;
 const int modeBattVoltage = 2;
 const int modeOilPress = 3;
@@ -77,7 +82,9 @@ const int modeIntakeTemp = 9;
 const int modeTach = 10;
 const int modeFuelLevel = 11;
 const int modeLCDSetup = 12;
-const int modeLCDColor = 95;
+const int modeSystemSetup = 13;
+const int modeEngineCylinders = 94; // hidden mode (not in normal rotation)
+const int modeLCDColor = 95; // hidden mode (not in normal rotation)
 const int modeBigFont = 96; // hidden mode (not in normal rotation)
 const int modeLCDBrightness = 97; // hidden mode (not in normal rotation)
 const int modeLCDContrast = 98; // hidden mode (not in normal rotation)
@@ -187,6 +194,7 @@ int lcdLEDGreen; // scale from 0-255
 int lcdLEDBlue; // scale from 0-255
 
 // clock setup
+// default values if RTC not set
 byte currentHour = 0;
 byte currentMinute = 0;
 byte currentSecond = 0;
@@ -198,6 +206,7 @@ int currentYear = 2014;
 byte useCelcius = 0; // unit selector (deg F/deg C, psi/bar)
 byte lcdAutoDim = 0;
 byte lcdBigFont = 1;
+byte engineCylinders = 8; // for tach calculation
 const int refreshInterval = 750; // milliseconds between sensor updates
 
 // timing values
@@ -236,8 +245,18 @@ void setup()
   {
     lcdBigFont = EEPROM.read(lcdBigFontAddress);
   }
-  // set default time
-  setTime(currentHour,currentMinute,currentSecond,currentDay,currentMonth,currentYear);
+  if (EEPROM.read(engineCylindersAddress) < 255)
+  {
+    engineCylinders = EEPROM.read(engineCylindersAddress);
+  }
+  // get RTC time
+  setSyncProvider(RTC.get);
+  // set default time if RTC not set
+  if (timeStatus() != timeSet)
+  {
+    setTime(currentHour,currentMinute,currentSecond,currentDay,currentMonth,currentYear);
+  }
+  pinMode(2, INPUT_PULLUP);
   pinMode(lcdContrastPin,OUTPUT);
   pinMode(lcdLEDRedPin,OUTPUT);
   pinMode(lcdLEDGreenPin,OUTPUT);
@@ -260,7 +279,7 @@ void setup()
   sensors.setResolution(oilTempDigital,9);
   sensors.setResolution(intakeTempDigital,9);
   sensors.setResolution(transTempDigital,9);
-  attachInterrupt(switchPin,pressButton,RISING);
+  attachInterrupt(switchPin,pressButton,FALLING);
   
   modeSwitch.write((mode-1)*4);
 }
@@ -412,9 +431,9 @@ void loop()
       setRGBFromHue();
       lcdBrightness = map((lcdLEDRed+lcdLEDGreen+lcdLEDBlue),255,510,100,50);
       writeLCDValues();
-      EEPROM.write(lcdHueAddress,lcdHue);
       displayInfo(modeLCDColor);
     }
+    EEPROM.write(lcdHueAddress,lcdHue);
     buttonPressed=false;
     modeSwitch.write((lcdAutoDim-1)*4); // auto dim on/off
     lcd.clear();
@@ -433,10 +452,9 @@ void loop()
       }
       setAutoBrightness();
       writeLCDValues();
-      EEPROM.write(lcdAutoDimAddress,lcdAutoDim);
-      displayInfo(modeLCDAutoDim);
-      
+      displayInfo(modeLCDAutoDim); 
     }
+    EEPROM.write(lcdAutoDimAddress,lcdAutoDim);
     buttonPressed=false;
     lcd.clear();
     modeSwitch.write((lcdBrightness-1)*4); // manual brightness
@@ -454,9 +472,9 @@ void loop()
         modeSwitch.write((lcdBrightness-1)*4);
       }
       writeLCDValues();
-      EEPROM.write(lcdBrightnessAddress,lcdBrightness);
       displayInfo(modeLCDBrightness);
     }
+    EEPROM.write(lcdBrightnessAddress,lcdBrightness);
     lcd.clear();
     buttonPressed=false;
     modeSwitch.write((lcdContrast-1)*4); // contrast
@@ -474,9 +492,9 @@ void loop()
         modeSwitch.write((lcdContrast-1)*4);
       }
       writeLCDValues();
-      EEPROM.write(lcdContrastAddress,lcdContrast);
       displayInfo(modeLCDContrast);
     }
+    EEPROM.write(lcdContrastAddress,lcdContrast);
     buttonPressed=false;
     modeSwitch.write((lcdBigFont-1)*4); // big font on/off
     lcd.clear();
@@ -493,10 +511,34 @@ void loop()
         lcdBigFont=1;
         modeSwitch.write((lcdBigFont-1)*4);
       }
-      EEPROM.write(lcdBigFontAddress,lcdBigFont);
       displayInfo(modeBigFont);
-      
     }
+    EEPROM.write(lcdBigFontAddress,lcdBigFont);
+    buttonPressed = false;
+    modeSwitch.write((mode-1)*4);
+    lcd.clear();
+  }
+  else if (mode == modeSystemSetup && buttonPressed == true) // change system parameters
+  {
+    lcd.clear();
+    buttonPressed = false;
+    modeSwitch.write(((engineCylinders/2)-1)*4); // set number of cylinders
+    while(buttonPressed == false)
+    {
+      engineCylinders = 2*(modeSwitch.read()/4+1);
+      if(engineCylinders < 2)
+      {
+        engineCylinders = 2;
+        modeSwitch.write(((engineCylinders/2)-1)*4);
+      }
+      else if (engineCylinders > 16)
+      {
+        engineCylinders = 16;
+        modeSwitch.write(((engineCylinders/2)-1)*4);
+      }
+      displayInfo(modeEngineCylinders);
+    }
+    EEPROM.write(engineCylindersAddress,engineCylinders);
     buttonPressed = false;
     modeSwitch.write((mode-1)*4);
     lcd.clear();
@@ -504,10 +546,10 @@ void loop()
   else if (mode==modeClock && buttonPressed==true) //  set clock
   {
     lcd.clear();
-    buttonPressed=false;
+    buttonPressed = false;
     byte instantHour = hour();
     byte instantMinute = minute();
-    byte instantSecond = second();
+    byte instantSecond = 0;
     byte instantMonth = month();
     byte instantDay = day();
     int instantYear = year();
@@ -621,6 +663,7 @@ void loop()
       setTime(instantHour,instantMinute,instantSecond,instantDay,instantMonth,instantYear);
       displayInfo(modeClock);
     }
+    RTC.set(now());
     buttonPressed=false;
     lcd.clear();
     modeSwitch.write((mode-1)*4);
@@ -898,7 +941,7 @@ void displayInfo(int displayMode)
     {
       lcd.setCursor(1,0);
       lcd.print("Engine Speed:");
-      float currentRPM = RPMpulses/4.0*(60000.0/refreshInterval);
+      float currentRPM = RPMpulses/(engineCylinders/2)*(60000.0/refreshInterval);
       RPMpulses=0;
       lcd.setCursor(4,1);
       if(currentRPM<10)
@@ -948,8 +991,18 @@ void displayInfo(int displayMode)
       }
       break;
     }
-    case modeLCDSetup: // Settings
+    case modeLCDSetup: // Display Settings
     {
+      lcd.setCursor(4,0);
+      lcd.print("Display");
+      lcd.setCursor(4,1);
+      lcd.print("Settings");
+      break;
+    }
+    case modeSystemSetup: // System Settings
+    {
+      lcd.setCursor(5,0);
+      lcd.print("System");
       lcd.setCursor(4,1);
       lcd.print("Settings");
       break;
@@ -1195,6 +1248,18 @@ void displayInfo(int displayMode)
       }
       break;
     }
+    case modeEngineCylinders:
+    {
+      lcd.setCursor(0,0);
+      lcd.print("Engine Cylinders");
+      lcd.setCursor(7,1);
+      if (engineCylinders < 10)
+      {
+        lcd.print(" ");
+      }
+      lcd.print(engineCylinders);
+      break;
+    }
   }
 }
 
@@ -1204,7 +1269,7 @@ void displayInfoLarge(int displayMode)
   {
     case modeTach:
     {
-      int currentRPM = RPMpulses/4.0*(60000.0/refreshInterval);
+      int currentRPM = RPMpulses/(engineCylinders/2)*(60000.0/refreshInterval);
       RPMpulses=0;
       
       byte RPMString[4];
@@ -1701,6 +1766,16 @@ void displayInfoLarge(int displayMode)
     }
     case modeLCDSetup:
     {
+      lcd.setCursor(4,0);
+      lcd.print("Display");
+      lcd.setCursor(4,1);
+      lcd.print("Settings");
+      break;
+    }
+    case modeSystemSetup: // System Settings
+    {
+      lcd.setCursor(5,0);
+      lcd.print("System");
       lcd.setCursor(4,1);
       lcd.print("Settings");
       break;
