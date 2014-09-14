@@ -20,13 +20,12 @@ const int engineCylindersAddress = 7;
 // digital pins
 const int switchPin = 0; // momentary switch on interrupt 0 (digital pin 2)
 const int tachPin = 1; // tach signal on interrupt 1 (digital pin 3)
-const int ignitionPin = 4; // ignition signal on interrupt 4 (digital pin 19)
 const int lcdContrastPin = 4; // contrast adjust on digital pin 4 (PWM)
 const int encoderPin1 = 18; // A leg of encoder on digital pin 18 (interrupt 5)
 const int encoderPin2 = 19; // B leg of encoder on digital pin 19 (interrupt 4)
 const int wireSDAPin = 20;
 const int wireSCLPin = 21;
-const int igntionPin = 4; // ignition signal on interrupt 4 (digital pin 19)
+const int factoryResetPin = 22; // help HIGH by internal pullup, short to GND to reset to factory defualts during bootup 
 const int oneWirePin = 24; // data pin for 1-Wire devices
 const int lcdD7Pin = 38; // LCD D7 pin
 const int lcdD6Pin = 39; // LCD D6 pin
@@ -69,7 +68,7 @@ DeviceAddress transTempDigital = {0x28, 0xFF, 0xD5, 0x33, 0x2B, 0x04, 0x00, 0x6A
 Encoder modeSwitch(encoderPin1,encoderPin2);
 const int modeMin = 1;
 const int modeMax = 13; // number of modes
-// modes - this sets order
+// normal modes - this sets order
 const int modeClock = 1;
 const int modeBattVoltage = 2;
 const int modeOilPress = 3;
@@ -83,12 +82,14 @@ const int modeTach = 10;
 const int modeFuelLevel = 11;
 const int modeLCDSetup = 12;
 const int modeSystemSetup = 13;
-const int modeEngineCylinders = 94; // hidden mode (not in normal rotation)
-const int modeLCDColor = 95; // hidden mode (not in normal rotation)
-const int modeBigFont = 96; // hidden mode (not in normal rotation)
-const int modeLCDBrightness = 97; // hidden mode (not in normal rotation)
-const int modeLCDContrast = 98; // hidden mode (not in normal rotation)
-const int modeLCDAutoDim = 99; // hidden mode (not in normal rotation)
+// hidden modes - not in normal rotation (inside menus, etc.)
+const int modeUseCelcius = 93;
+const int modeEngineCylinders = 94;
+const int modeLCDColor = 95;
+const int modeBigFont = 96;
+const int modeLCDBrightness = 97;
+const int modeLCDContrast = 98;
+const int modeLCDAutoDim = 99;
 
 int mode = modeClock; // mode to start in
 int previousMode = mode;
@@ -220,6 +221,17 @@ volatile boolean buttonPressed=false;
 
 void setup()
 {
+  pinMode(factoryResetPin, INPUT_PULLUP); // enable internal pullup on factory reset pin
+  if(digitalRead(factoryResetPin) == LOW) //if factory reset pin has been pulled LOW, clear EEPROM
+  {
+    EEPROM.write(lcdContrastAddress,255);
+    EEPROM.write(lcdBrightnessAddress,255);
+    EEPROM.write(lcdHueAddress,255);
+    EEPROM.write(useCelciusAddress,255);
+    EEPROM.write(lcdAutoDimAddress,255);
+    EEPROM.write(lcdBigFontAddress,255);
+    EEPROM.write(engineCylindersAddress,255);
+  }
   // load values from EEPROM
   if (EEPROM.read(lcdContrastAddress) < 255)
   {
@@ -257,6 +269,7 @@ void setup()
     setTime(currentHour,currentMinute,currentSecond,currentDay,currentMonth,currentYear);
   }
   pinMode(2, INPUT_PULLUP);
+  pinMode(3, INPUT_PULLUP);
   pinMode(lcdContrastPin,OUTPUT);
   pinMode(lcdLEDRedPin,OUTPUT);
   pinMode(lcdLEDGreenPin,OUTPUT);
@@ -414,6 +427,7 @@ void loop()
   {
     buttonPressed=false;
     lcd.clear();
+    int previousBrightness = lcdBrightness;
     modeSwitch.write((lcdHue-1)*4); // color
     while(buttonPressed==false)
     { 
@@ -434,6 +448,7 @@ void loop()
       displayInfo(modeLCDColor);
     }
     EEPROM.write(lcdHueAddress,lcdHue);
+    lcdBrightness = previousBrightness;
     buttonPressed=false;
     modeSwitch.write((lcdAutoDim-1)*4); // auto dim on/off
     lcd.clear();
@@ -540,6 +555,25 @@ void loop()
     }
     EEPROM.write(engineCylindersAddress,engineCylinders);
     buttonPressed = false;
+    lcd.clear();
+    modeSwitch.write((useCelcius-1)*4);
+    while(buttonPressed == false)
+    {
+      useCelcius = modeSwitch.read()/4+1;
+      if(useCelcius < 0)
+      {
+        useCelcius = 0;
+        modeSwitch.write((useCelcius-1)*4);
+      }
+      else if (useCelcius > 1)
+      {
+        useCelcius = 1;
+        modeSwitch.write((useCelcius-1)*4);
+      }
+      displayInfo(modeUseCelcius);
+    }
+    buttonPressed = false;
+    EEPROM.write(useCelciusAddress, useCelcius);
     modeSwitch.write((mode-1)*4);
     lcd.clear();
   }
@@ -1005,6 +1039,21 @@ void displayInfo(int displayMode)
       lcd.print("System");
       lcd.setCursor(4,1);
       lcd.print("Settings");
+      break;
+    }
+    case modeUseCelcius: // unit system
+    {
+      lcd.setCursor(2,0);
+      lcd.print("Unit System");
+      lcd.setCursor(4,1);
+      if(useCelcius == 0)
+      {
+        lcd.print("English");
+      }
+      else
+      {
+        lcd.print("  SI   ");
+      }
       break;
     }
     case modeClock: // Clock
