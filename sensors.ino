@@ -20,7 +20,7 @@ const int engineCylindersAddress = 7;
 // digital pins
 const int switchPin = 0; // momentary switch on interrupt 0 (digital pin 2)
 const int tachPin = 1; // tach signal on interrupt 1 (digital pin 3)
-const int lcdContrastPin = 4; // contrast adjust on digital pin 4 (PWM)
+const int lcdContrastPin = 9; // contrast adjust on digital pin 4 (PWM)
 const int encoderPin1 = 18; // A leg of encoder on digital pin 18 (interrupt 5)
 const int encoderPin2 = 19; // B leg of encoder on digital pin 19 (interrupt 4)
 const int wireSDAPin = 20;
@@ -187,9 +187,9 @@ byte lowerEnd[8] =
   B01111
 };
 
-int lcdContrast = 90; // scale from 0-100, map to 0-255 for analogWrite()
+int lcdContrast = 80; // scale from 0-100, map to 0-255 for analogWrite()
 int lcdBrightness = 100; // scale from 0-100
-int lcdHue = 45; // scale from 1-120
+int lcdHue = 72; // scale from 1-120
 int lcdLEDRed; // scale from 0-255
 int lcdLEDGreen; // scale from 0-255
 int lcdLEDBlue; // scale from 0-255
@@ -283,8 +283,8 @@ void setup()
   lcd.createChar(5,rightEnd);
   lcd.createChar(6,middleBar);
   lcd.createChar(7,lowerEnd);
+  TCCR2B = TCCR2B & 0b11111000 | 0x01; // sets pin 10 and 9 to frequency 31250 Hz
   setRGBFromHue();
-  lcdBrightness = map((lcdLEDRed+lcdLEDGreen+lcdLEDBlue),255,510,100,50);
   writeLCDValues(); 
   sensors.begin(); //setup DS18B20 sensors to 9 bit resolution
   sensors.setResolution(insideTempDigital,9);
@@ -363,9 +363,14 @@ void writeLCDValues()
 
 float getBattVoltage() // returns battery voltage in volts
 {
-  float R1=99400.0;
-  float R2=9900.0;
+  float R1=100000.0;
+  float R2=38300.0;
   int val = analogRead(battVoltagePin);
+  for (int i = 1;i<10;i++)
+  {
+    val += analogRead(battVoltagePin);
+  }
+  val /= 10;
   float Vout = (val/1023.0)*5.0;
   float Vin = Vout*(R1+R2)/R2;
   return Vin;
@@ -376,6 +381,11 @@ float getOilPress() // returns Oil pressure in psi
   float R1=47000.0;
   float R2=100000.0;
   int val = analogRead(oilPressPin);
+  for (int i = 1;i<10;i++)
+  {
+    val += analogRead(oilPressPin);
+  }
+  val /= 10;
   float Vout = val/1023.0*5.0;
   float VI = Vout*(R1+R2)/R2;
   float Rsender = VI*oilGaugeOhms/(regVoltage-VI);
@@ -388,6 +398,11 @@ float getFuelLevel() // returns Fuel Level in %
   float R1=47000.0;
   float R2=100000.0;
   int val = analogRead(fuelLevelPin);
+  for (int i = 1;i<10;i++)
+  {
+    val += analogRead(oilPressPin);
+  }
+  val /= 10;
   float Vout = val/1023.0*5.0;
   float VI = Vout*(R1+R2)/R2;
   float Rsender = VI*fuelGaugeOhms/(regVoltage-VI);
@@ -400,6 +415,11 @@ float getCoolantTemp() // returns coolant temp in deg C
   float R1=47000.0;
   float R2=100000.0;
   int val = analogRead(coolantTempPin);
+  for (int i = 1;i<10;i++)
+  {
+    val += analogRead(coolantTempPin);
+  }
+  val /= 10;
   float Vout = val/1023.0*5.0;
   float VI = Vout*(R1+R2)/R2;
   float Rsender = VI*coolantGaugeOhms/(regVoltage-VI);
@@ -556,7 +576,7 @@ void loop()
     EEPROM.write(engineCylindersAddress,engineCylinders);
     buttonPressed = false;
     lcd.clear();
-    modeSwitch.write((useCelcius-1)*4);
+    modeSwitch.write((useCelcius-1)*4); // change unit system
     while(buttonPressed == false)
     {
       useCelcius = modeSwitch.read()/4+1;
@@ -697,7 +717,7 @@ void loop()
       setTime(instantHour,instantMinute,instantSecond,instantDay,instantMonth,instantYear);
       displayInfo(modeClock);
     }
-    RTC.set(now());
+    RTC.set(now()); // update RTC
     buttonPressed=false;
     lcd.clear();
     modeSwitch.write((mode-1)*4);
@@ -725,7 +745,7 @@ void loop()
       
       if(mode==modeTach) // start or stop counting interrupts for engine speed
       {
-        attachInterrupt(tachPin,countRPM,RISING);
+        attachInterrupt(tachPin,countRPM,FALLING);
       }
       else
       {
@@ -738,7 +758,7 @@ void loop()
   // switch temp and pressure units
   if ((mode==modeCoolantTemp || mode==modeInsideTemp || mode==modeOutsideTemp || mode==modeTransTemp || mode==modeOilTemp || mode==modeIntakeTemp || mode==modeOilPress) && buttonPressed==true)
   {
-    previousMillis=0;
+    previousMillis=0; // forces an immediate value update
     buttonPressed=false; 
     if(useCelcius==0)
     {
