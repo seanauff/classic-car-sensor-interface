@@ -20,12 +20,12 @@ const int engineCylindersAddress = 7;
 // digital pins
 const int switchPin = 0; // momentary switch on interrupt 0 (digital pin 2)
 const int tachPin = 1; // tach signal on interrupt 1 (digital pin 3)
-const int lcdContrastPin = 9; // contrast adjust on digital pin 4 (PWM)
+const int lcdContrastPin = 9; // contrast adjust on digital pin 9 (PWM)
 const int encoderPin1 = 18; // A leg of encoder on digital pin 18 (interrupt 5)
 const int encoderPin2 = 19; // B leg of encoder on digital pin 19 (interrupt 4)
 const int wireSDAPin = 20;
 const int wireSCLPin = 21;
-const int factoryResetPin = 22; // help HIGH by internal pullup, short to GND to reset to factory defualts during bootup 
+const int factoryResetPin = 22; // held HIGH by internal pullup, short to GND to reset to factory defualts during bootup 
 const int oneWirePin = 24; // data pin for 1-Wire devices
 const int lcdD7Pin = 38; // LCD D7 pin
 const int lcdD6Pin = 39; // LCD D6 pin
@@ -43,6 +43,7 @@ const int oilPressPin = A1; // pin for oil pressure
 const int fuelLevelPin = A2; // pin for fuel level
 const int coolantTempPin = A3; // pin for coolant temp
 const int autoDimPin = A4; // pin for external brightness control
+const int AFRatioPin = A5; // pin for LSU 4.9 controller linear output
 
 // analog input setup
 const float regVoltage = 5.9; // insturment unit voltage regulator output
@@ -67,7 +68,7 @@ DeviceAddress transTempDigital = {0x28, 0xFF, 0xD5, 0x33, 0x2B, 0x04, 0x00, 0x6A
 // rotary encoder setup
 Encoder modeSwitch(encoderPin1,encoderPin2);
 const int modeMin = 1;
-const int modeMax = 13; // number of modes
+const int modeMax = 14; // number of modes
 // normal modes - this sets order
 const int modeClock = 1;
 const int modeBattVoltage = 2;
@@ -79,9 +80,10 @@ const int modeOilTemp = 7;
 const int modeTransTemp = 8;
 const int modeIntakeTemp = 9;
 const int modeTach = 10;
-const int modeFuelLevel = 11;
-const int modeLCDSetup = 12;
-const int modeSystemSetup = 13;
+const int modeAFRatio = 11;
+const int modeFuelLevel = 12;
+const int modeLCDSetup = 13;
+const int modeSystemSetup = 14;
 // hidden modes - not in normal rotation (inside menus, etc.)
 const int modeUseCelcius = 93;
 const int modeEngineCylinders = 94;
@@ -283,7 +285,7 @@ void setup()
   lcd.createChar(5,rightEnd);
   lcd.createChar(6,middleBar);
   lcd.createChar(7,lowerEnd);
-  TCCR2B = TCCR2B & 0b11111000 | 0x01; // sets pin 10 and 9 to frequency 31250 Hz
+  TCCR2B = TCCR2B & 0b11111000 | 0x01; // sets pin 10 and 9 to frequency 31372.55 Hz
   setRGBFromHue();
   writeLCDValues(); 
   sensors.begin(); //setup DS18B20 sensors to 9 bit resolution
@@ -425,6 +427,17 @@ float getCoolantTemp() // returns coolant temp in deg C
   float Rsender = VI*coolantGaugeOhms/(regVoltage-VI);
   float temp = pow(SHparamA+SHparamB*log(Rsender)+SHparamC*pow(log(Rsender),3),-1)-273.15; // sensor calibration curve based on Steinhart–Hart equation
   return temp;
+}
+
+float getLambda()
+{
+  int val = analogRead(AFRatioPin);
+  for (int i = 1;i<10;i++)
+  {
+    val += analogRead(AFRatioPin);
+  }
+  val /= 10;
+  return (map(val,0,1023,680,1360))/1000.0;
 }
 
 void countRPM()
@@ -796,7 +809,7 @@ void displayInfo(int displayMode)
     case modeBattVoltage: // battery voltage
     {
       lcd.setCursor(0,0);
-      lcd.print("Battery Voltage:");
+      lcd.print("Battery Voltage");
       float battVoltage = getBattVoltage();
       lcd.setCursor(5,1);
       if (battVoltage<10)
@@ -809,8 +822,8 @@ void displayInfo(int displayMode)
     }
     case modeOilPress: // oil pressure
     {
-      lcd.setCursor(1,0);
-      lcd.print("Oil Pressure:");
+      lcd.setCursor(2,0);
+      lcd.print("Oil Pressure");
       float oilPressure = getOilPress();
       if (useCelcius == 1)
       {
@@ -838,8 +851,8 @@ void displayInfo(int displayMode)
     }
     case modeCoolantTemp: // coolant temp
     {
-      lcd.setCursor(1,0);
-      lcd.print("Coolant Temp:");
+      lcd.setCursor(2,0);
+      lcd.print("Coolant Temp");
       float currentTemp = getCoolantTemp();
       if (useCelcius==0)
       {
@@ -869,8 +882,8 @@ void displayInfo(int displayMode)
     }
     case modeOutsideTemp: // outside temp
     {
-      lcd.setCursor(1,0);
-      lcd.print("Outside Temp:");
+      lcd.setCursor(2,0);
+      lcd.print("Outside Temp");
       float currentTemp = sensors.getTempC(outsideTempDigital);
       if (useCelcius==0)
       {
@@ -901,7 +914,7 @@ void displayInfo(int displayMode)
     case modeInsideTemp: // inside temp
     {
       lcd.setCursor(2,0);
-      lcd.print("Inside Temp:");
+      lcd.print("Inside Temp");
       float currentTemp = sensors.getTempC(insideTempDigital);
       if (useCelcius==0)
       {
@@ -931,8 +944,8 @@ void displayInfo(int displayMode)
     }
     case modeOilTemp: // oil temp
     {
-      lcd.setCursor(3,0);
-      lcd.print("Oil Temp:");
+      lcd.setCursor(4,0);
+      lcd.print("Oil Temp");
       float currentTemp = sensors.getTempC(oilTempDigital);
       if (useCelcius==0)
       {
@@ -963,7 +976,7 @@ void displayInfo(int displayMode)
     case modeTransTemp: // transmission temp
     {
       lcd.setCursor(2,0);
-      lcd.print("Trans. Temp:");
+      lcd.print("Trans. Temp");
       float currentTemp = sensors.getTempC(transTempDigital);
       if (useCelcius==0)
       {
@@ -993,8 +1006,8 @@ void displayInfo(int displayMode)
     }
     case modeTach: // engine speed
     {
-      lcd.setCursor(1,0);
-      lcd.print("Engine Speed:");
+      lcd.setCursor(2,0);
+      lcd.print("Engine Speed");
       float currentRPM = RPMpulses/(engineCylinders/2)*(60000.0/refreshInterval);
       RPMpulses=0;
       lcd.setCursor(4,1);
@@ -1017,7 +1030,7 @@ void displayInfo(int displayMode)
     case modeIntakeTemp: // intake temp
     {
       lcd.setCursor(2,0);
-      lcd.print("Intake Temp:");
+      lcd.print("Intake Temp");
       float currentTemp = sensors.getTempC(intakeTempDigital);
       if (useCelcius==0)
       {
@@ -1222,8 +1235,8 @@ void displayInfo(int displayMode)
     }
     case modeFuelLevel: //  Fuel Level
     {
-      lcd.setCursor(2,0);
-      lcd.print("Fuel Level:");
+      lcd.setCursor(3,0);
+      lcd.print("Fuel Level");
       float fuelLevel = getFuelLevel();
       fuelLevel = constrain(fuelLevel,0,100);
       lcd.setCursor(5,1);
@@ -1242,7 +1255,7 @@ void displayInfo(int displayMode)
     case modeLCDColor:
     {
       lcd.setCursor(3,0);
-      lcd.print("LCD Color:");
+      lcd.print("LCD Color");
       lcd.setCursor(6,2);
       if(lcdHue<10)
       {
@@ -1272,8 +1285,8 @@ void displayInfo(int displayMode)
     }
     case modeLCDBrightness: // LCD brightness
     {
-      lcd.setCursor(0,0);
-      lcd.print("LCD Brightness:");
+      lcd.setCursor(1,0);
+      lcd.print("LCD Brightness");
       lcd.setCursor(6,1);
       if (lcdBrightness<10)
       {
@@ -1288,8 +1301,8 @@ void displayInfo(int displayMode)
     }
     case modeLCDContrast: // LCD contrast
     {
-      lcd.setCursor(1,0);
-      lcd.print("LCD Contrast:");
+      lcd.setCursor(2,0);
+      lcd.print("LCD Contrast");
       lcd.setCursor(6,1);
       if (lcdContrast<10)
       {
@@ -1327,6 +1340,19 @@ void displayInfo(int displayMode)
         lcd.print(" ");
       }
       lcd.print(engineCylinders);
+      break;
+    }
+    case modeAFRatio:
+    {
+      lcd.setCursor(3,0);
+      lcd.print("A/F Ratio");
+      float currentAFRatio = getLambda()*14.7;
+      lcd.setCursor(6,1);
+      if (currentAFRatio<10)
+      {
+        lcd.print(" ");
+      }
+      lcd.print(currentAFRatio,1);
       break;
     }
   }
@@ -1833,6 +1859,38 @@ void displayInfoLarge(int displayMode)
       }
       break;
     }
+    case modeAFRatio:
+    {
+      float currentAFRatio = getLambda()*14.7;
+      currentAFRatio *=10;
+      int currentAFRatioInt = int(currentAFRatio);
+      byte AFRString[3];
+      AFRString[2] = currentAFRatioInt%10;
+      currentAFRatioInt /= 10;
+      AFRString[1] = currentAFRatioInt%10;
+      currentAFRatioInt /= 10;
+      AFRString[0] = currentAFRatioInt%10;
+      boolean significantZero = false;
+      for (int i = 0; i < 2; i++)
+      {
+        if( AFRString[i]==0 && significantZero==false && i<1)
+        {
+          clearLargeNumber(i*3);
+        }
+        else
+        {
+          displayLargeNumber(AFRString[i],i*3);
+          significantZero = true;
+        }
+      }
+      lcd.setCursor(9,0);
+      lcd.print("A/F");
+      lcd.setCursor(6,1);
+      lcd.print(".");
+      lcd.print(AFRString[2]);
+      lcd.print(" Ratio");
+      break;
+    }
     case modeLCDSetup:
     {
       lcd.setCursor(4,0);
@@ -1851,9 +1909,6 @@ void displayInfoLarge(int displayMode)
     }
   }
 }
-
-
-
 void displayLargeNumber(byte n, byte x) // n is number to display, x is column of upper left corner for large character
 {
   switch (n)
