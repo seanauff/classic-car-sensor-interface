@@ -1,3 +1,0 @@
-BigNumbers	KEYWORD1
-clearLargeNumber	KEYWORD2
-displayLargeNumber	KEYWORD2
