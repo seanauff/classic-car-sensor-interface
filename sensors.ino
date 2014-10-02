@@ -348,290 +348,316 @@ void setup()
 // main loop, runs continuously after setup()
 void loop()
 {
-  // change LCD parameters
+  // change LCD parameters if button pressed while displaying LCD setup
   if(mode == modeLCDSetup && buttonPressed)
   {
     buttonPressed=false;
     lcd.clear();
     int previousBrightness = lcdBrightness; // store last brightness value
     // change color
-    modeSwitch.write((lcdHue - 1) * 4); // write surrent lcdHue value to Encoder
+    modeSwitch.write((lcdHue - 1) * 4); // write current lcdHue value to Encoder
     // loop until button pressed
     while(!buttonPressed)
     { 
-      lcdHue = modeSwitch.read() / 4 + 1;
-      if(lcdHue>120)
+      lcdHue = modeSwitch.read() / 4 + 1; // set lcdHue according to encoder position
+      // loop around if out of range
+      if(lcdHue > 120) // max values is 120
       {
-        lcdHue=1;
-        modeSwitch.write((lcdHue-1)*4);
+        lcdHue = 1;
+        modeSwitch.write((lcdHue - 1) * 4);
       }
-      else if (lcdHue<1)
+      else if (lcdHue < 1) // min value is 1
       {
-        lcdHue=120;
-        modeSwitch.write((lcdHue-1)*4);
+        lcdHue = 120;
+        modeSwitch.write((lcdHue - 1) * 4);
       }
-      setRGBFromHue();
-      lcdBrightness = map((lcdLEDRed+lcdLEDGreen+lcdLEDBlue),255,510,100,50);
-      writeLCDValues();
-      displayInfo(modeLCDColor);
+      setRGBFromHue(); // determine new RGB values
+      lcdBrightness = map((lcdLEDRed + lcdLEDGreen + lcdLEDBlue), 255, 510, 100, 50); // normalize brightness due to varying amounts of LEDs used
+      writeLCDValues(); // write new values to LCD
+      displayInfo(modeLCDColor); // update display
     }
-    EEPROM.write(lcdHueAddress,lcdHue);
-    lcdBrightness = previousBrightness;
-    buttonPressed=false;
-    modeSwitch.write((lcdAutoDim-1)*4); // auto dim on/off
+    EEPROM.write(lcdHueAddress, lcdHue); // store new value in EEPROM
+    lcdBrightness = previousBrightness; // restore brightness to previous value
+    buttonPressed = false;
     lcd.clear();
-    while(buttonPressed==false)
+    // auto dim on/off
+    modeSwitch.write((lcdAutoDim - 1) * 4); // write current state to Encoder
+    // loop until button pressed
+    while(!buttonPressed)
     {
-      lcdAutoDim=modeSwitch.read()/4+1;
-      if(lcdAutoDim>1)
+      lcdAutoDim = modeSwitch.read() / 4 + 1; // set value according to encoder position
+      // loop around if out of range
+      if(lcdAutoDim > 1) // max value is 1
       {
-        lcdAutoDim=1;
-        modeSwitch.write((lcdAutoDim-1)*4);
+        lcdAutoDim = 1;
+        modeSwitch.write((lcdAutoDim - 1) * 4);
       }
-      else if (lcdAutoDim<0)
+      else if (lcdAutoDim < 0) // min value is 0
       {
-        lcdAutoDim=0;
-        modeSwitch.write((lcdAutoDim-1)*4);
+        lcdAutoDim = 0;
+        modeSwitch.write((lcdAutoDim - 1) * 4);
       }
       setAutoBrightness();
       writeLCDValues();
       displayInfo(modeLCDAutoDim); 
     }
-    EEPROM.write(lcdAutoDimAddress,lcdAutoDim);
-    buttonPressed=false;
+    EEPROM.write(lcdAutoDimAddress, lcdAutoDim);
+    buttonPressed = false;
     lcd.clear();
-    modeSwitch.write((lcdBrightness-1)*4); // manual brightness
-    while(buttonPressed==false && lcdAutoDim==0)
+    // manual brightness
+    modeSwitch.write((lcdBrightness - 1) * 4); // write current state to Encoder
+    // loop until button pressed
+    // can only change manual brightness if Automatic brightness is OFF
+    while(!buttonPressed && lcdAutoDim == 0)
     { 
-      lcdBrightness=modeSwitch.read()/4+1;
-      if(lcdBrightness>100)
+      lcdBrightness = modeSwitch.read() / 4 + 1;
+      // don't go past limits
+      if(lcdBrightness > 100) // max values is 100
       {
-        lcdBrightness=100;
-        modeSwitch.write((lcdBrightness-1)*4);
+        lcdBrightness = 100;
+        modeSwitch.write((lcdBrightness - 1) * 4);
       }
-      else if (lcdBrightness<0)
+      else if (lcdBrightness < 0) // min value is 0
       {
-        lcdBrightness=0;
-        modeSwitch.write((lcdBrightness-1)*4);
+        lcdBrightness = 0;
+        modeSwitch.write((lcdBrightness - 1) * 4);
       }
       writeLCDValues();
       displayInfo(modeLCDBrightness);
     }
-    EEPROM.write(lcdBrightnessAddress,lcdBrightness);
+    EEPROM.write(lcdBrightnessAddress, lcdBrightness);
+    buttonPressed = false;
     lcd.clear();
-    buttonPressed=false;
-    modeSwitch.write((lcdContrast-1)*4); // contrast
-    while(buttonPressed==false)
+    // change LCD contrast
+    modeSwitch.write((lcdContrast - 1) * 4);
+    // loop until button pressed
+    while(!buttonPressed)
     { 
-      lcdContrast=modeSwitch.read()/4+1;
-      if(lcdContrast>100)
+      lcdContrast = modeSwitch.read() / 4 + 1;
+      // don't go past limits
+      if(lcdContrast > 100) // max value is 100
       {
-        lcdContrast=100;
-        modeSwitch.write((lcdContrast-1)*4);
+        lcdContrast = 100;
+        modeSwitch.write((lcdContrast - 1) * 4);
       }
-      else if (lcdContrast<0)
+      else if (lcdContrast < 0) // min value is 0
       {
-        lcdContrast=0;
-        modeSwitch.write((lcdContrast-1)*4);
+        lcdContrast = 0;
+        modeSwitch.write((lcdContrast - 1) * 4);
       }
       writeLCDValues();
       displayInfo(modeLCDContrast);
     }
-    EEPROM.write(lcdContrastAddress,lcdContrast);
-    buttonPressed=false;
-    modeSwitch.write((lcdBigFont-1)*4); // big font on/off
+    EEPROM.write(lcdContrastAddress, lcdContrast);
+    buttonPressed = false;
     lcd.clear();
-    while(buttonPressed==false)
+     // big font on/off
+    modeSwitch.write((lcdBigFont - 1) * 4);
+    // loop until button pressed
+    while(!buttonPressed)
     {
-      lcdBigFont=modeSwitch.read()/4+1;
-      if(lcdBigFont>1)
+      lcdBigFont = modeSwitch.read() / 4 + 1;
+      if(lcdBigFont > 1)
       {
-        lcdBigFont=1;
-        modeSwitch.write((lcdBigFont-1)*4);
+        lcdBigFont = 1;
+        modeSwitch.write((lcdBigFont - 1) * 4);
       }
-      else if (lcdBigFont<0)
+      else if (lcdBigFont < 0)
       {
-        lcdBigFont=1;
-        modeSwitch.write((lcdBigFont-1)*4);
+        lcdBigFont = 1;
+        modeSwitch.write((lcdBigFont - 1) * 4);
       }
       displayInfo(modeBigFont);
     }
-    EEPROM.write(lcdBigFontAddress,lcdBigFont);
+    EEPROM.write(lcdBigFontAddress, lcdBigFont);
     buttonPressed = false;
-    modeSwitch.write((mode-1)*4);
     lcd.clear();
+    modeSwitch.write((mode - 1) * 4); // write current mode back to Encoder
   }
-  else if (mode == modeSystemSetup && buttonPressed == true) // change system parameters
+  // change system parameters if button pressed while displaying System setup
+  else if (mode == modeSystemSetup && buttonPressed)
   {
     lcd.clear();
     buttonPressed = false;
-    modeSwitch.write(((engineCylinders/2)-1)*4); // set number of cylinders
+    // set number of cylinders
+    modeSwitch.write(((engineCylinders / 2) - 1) * 4); // set number of cylinders
     while(buttonPressed == false)
     {
-      engineCylinders = 2*(modeSwitch.read()/4+1);
+      engineCylinders = 2 * (modeSwitch.read() / 4 + 1);
       if(engineCylinders < 2)
       {
         engineCylinders = 2;
-        modeSwitch.write(((engineCylinders/2)-1)*4);
+        modeSwitch.write(((engineCylinders / 2) - 1) * 4);
       }
       else if (engineCylinders > 16)
       {
         engineCylinders = 16;
-        modeSwitch.write(((engineCylinders/2)-1)*4);
+        modeSwitch.write(((engineCylinders / 2) - 1) * 4);
       }
       displayInfo(modeEngineCylinders);
     }
-    EEPROM.write(engineCylindersAddress,engineCylinders);
+    EEPROM.write(engineCylindersAddress, engineCylinders);
     buttonPressed = false;
     lcd.clear();
-    modeSwitch.write((useCelcius-1)*4); // change unit system
-    while(buttonPressed == false)
+    // change unit system
+    modeSwitch.write((useCelcius - 1) * 4);
+    // loop until button pressed
+    while(!buttonPressed)
     {
-      useCelcius = modeSwitch.read()/4+1;
+      useCelcius = modeSwitch.read() / 4 + 1;
       if(useCelcius < 0)
       {
         useCelcius = 0;
-        modeSwitch.write((useCelcius-1)*4);
+        modeSwitch.write((useCelcius - 1) * 4);
       }
       else if (useCelcius > 1)
       {
         useCelcius = 1;
-        modeSwitch.write((useCelcius-1)*4);
+        modeSwitch.write((useCelcius - 1) * 4);
       }
       displayInfo(modeUseCelcius);
     }
-    buttonPressed = false;
     EEPROM.write(useCelciusAddress, useCelcius);
-    modeSwitch.write((mode-1)*4);
+    buttonPressed = false;
     lcd.clear();
+    modeSwitch.write((mode-1)*4); // write current mode back to Encoder
   }
-  else if (mode == modeClock && buttonPressed == true) //  set clock
+  // set clock if button pressed while displaying clock
+  else if (mode == modeClock && buttonPressed)
   {
     lcd.clear();
     buttonPressed = false;
-    byte instantHour = hour();
-    byte instantMinute = minute();
-    byte instantSecond = 0;
-    byte instantMonth = month();
-    byte instantDay = day();
-    int instantYear = year();
-    modeSwitch.write((instantHour-1)*4); // set Hour
-    lcd.setCursor(0,0);
+    byte instantHour = hour(); // store current hour
+    byte instantMinute = minute(); // store current minute
+    byte instantSecond = 0; // reset seconds to 0
+    byte instantMonth = month(); // store current month
+    byte instantDay = day(); // store current day
+    int instantYear = year(); // store current year
+    // set Hour
+    modeSwitch.write((instantHour - 1) * 4); // set Hour
+    lcd.setCursor(0, 0);
     lcd.print("     ");
-    lcd.setCursor(0,0);
+    lcd.setCursor(0, 0);
     lcd.print("Hour");
-    while(buttonPressed==false)
+    // loop until button pressed
+    while(!buttonPressed)
     {
-      instantHour = modeSwitch.read()/4+1;
-      if (instantHour<0)
+      instantHour = modeSwitch.read() / 4 + 1;
+      if (instantHour < 0)
       {
-        instantHour=23;
-        modeSwitch.write((instantHour-1)*4);
+        instantHour = 23;
+        modeSwitch.write((instantHour - 1) * 4);
       }
-      else if (instantHour>23)
+      else if (instantHour > 23)
       {
-        instantHour=0;
-        modeSwitch.write((instantHour-1)*4);
+        instantHour = 0;
+        modeSwitch.write((instantHour - 1) * 4);
       }
-      setTime(instantHour,instantMinute,instantSecond,instantDay,instantMonth,instantYear);
+      setTime(instantHour, instantMinute, instantSecond, instantDay, instantMonth, instantYear);
       displayInfo(modeClock);
     }
-    buttonPressed=false;
-    modeSwitch.write((instantMinute-1)*4); // set Minute
-    lcd.setCursor(0,0);
+    buttonPressed = false;
+    // set Minute
+    modeSwitch.write((instantMinute - 1) * 4);
+    lcd.setCursor(0, 0);
     lcd.print("     ");
-    lcd.setCursor(0,0);
+    lcd.setCursor(0, 0);
     lcd.print("Min");
-    while(buttonPressed==false)
+    // loop until button pressed
+    while(!buttonPressed)
     {
-      instantMinute = modeSwitch.read()/4+1;
-      if (instantMinute<0)
+      instantMinute = modeSwitch.read() / 4 + 1;
+      if (instantMinute < 0)
       {
-        instantMinute=59;
-        modeSwitch.write((instantMinute-1)*4);
+        instantMinute = 59;
+        modeSwitch.write((instantMinute - 1) * 4);
       }
-      else if (instantMinute>59)
+      else if (instantMinute > 59)
       {
-        instantMinute=0;
-        modeSwitch.write((instantMinute-1)*4);
+        instantMinute = 0;
+        modeSwitch.write((instantMinute - 1) * 4);
       }
-      setTime(instantHour,instantMinute,instantSecond,instantDay,instantMonth,instantYear);
+      setTime(instantHour, instantMinute, instantSecond, instantDay, instantMonth, instantYear);
       displayInfo(modeClock);
     }
-    buttonPressed=false;
+    buttonPressed = false;
     // set Month
     modeSwitch.write((instantMonth-1)*4);
     lcd.setCursor(0,0);
     lcd.print("     ");
     lcd.setCursor(0,0);
     lcd.print("Month");
-    while(buttonPressed==false)
+    // loop until button pressed
+    while(!buttonPressed)
     {
-      instantMonth = modeSwitch.read()/4+1;
-      if (instantMonth<1)
+      instantMonth = modeSwitch.read() / 4 + 1;
+      if (instantMonth < 1)
       {
-        instantMonth=12;
-        modeSwitch.write((instantMonth-1)*4);
+        instantMonth = 12;
+        modeSwitch.write((instantMonth - 1) * 4);
       }
-      else if (instantMonth>12)
+      else if (instantMonth > 12)
       {
-        instantMonth=1;
-        modeSwitch.write((instantMonth-1)*4);
+        instantMonth = 1;
+        modeSwitch.write((instantMonth - 1) * 4);
       }
-      setTime(instantHour,instantMinute,instantSecond,instantDay,instantMonth,instantYear);
+      setTime(instantHour, instantMinute, instantSecond, instantDay, instantMonth, instantYear);
       displayInfo(modeClock);
     }
-    buttonPressed=false;
+    buttonPressed = false;
     // set Day
-    modeSwitch.write((instantDay-1)*4);
+    modeSwitch.write((instantDay - 1) * 4);
     lcd.setCursor(0,0);
     lcd.print("     ");
     lcd.setCursor(0,0);
     lcd.print("Day");
-    while(buttonPressed==false)
+    // loop until button pressed
+    while(!buttonPressed)
     {
-      instantDay = modeSwitch.read()/4+1;
-      if (instantDay<1)
+      instantDay = modeSwitch.read() / 4 + 1;
+      if (instantDay < 1)
       {
-        instantDay=31;
-        modeSwitch.write((instantDay-1)*4);
+        instantDay = 31;
+        modeSwitch.write((instantDay - 1) * 4);
       }
-      else if (instantDay>31)
+      else if (instantDay > 31)
       {
-        instantDay=1;
-        modeSwitch.write((instantDay-1)*4);
+        instantDay = 1;
+        modeSwitch.write((instantDay - 1) * 4);
       }
-      setTime(instantHour,instantMinute,instantSecond,instantDay,instantMonth,instantYear);
+      setTime(instantHour, instantMinute, instantSecond, instantDay, instantMonth, instantYear);
       displayInfo(modeClock);
     }
-    buttonPressed=false;
+    buttonPressed = false;
     // set Year
-    modeSwitch.write((instantYear-1)*4);
-    lcd.setCursor(0,0);
+    modeSwitch.write((instantYear - 1) * 4);
+    lcd.setCursor(0, 0);
     lcd.print("     ");
-    lcd.setCursor(0,0);
+    lcd.setCursor(0, 0);
     lcd.print("Year");
-    while(buttonPressed==false)
+    // loop until button pressed
+    while(!buttonPressed)
     {
-      instantYear = modeSwitch.read()/4+1;
-      if (instantYear<2000)
+      instantYear = modeSwitch.read() / 4 + 1;
+      if (instantYear < 2000)
       {
-        instantYear=2100;
-        modeSwitch.write((instantYear-1)*4);
+        instantYear = 2100;
+        modeSwitch.write((instantYear - 1) * 4);
       }
-      else if (instantYear>2100)
+      else if (instantYear > 2100)
       {
-        instantYear=2000;
-        modeSwitch.write((instantYear-1)*4);
+        instantYear = 2000;
+        modeSwitch.write((instantYear - 1) * 4);
       }
-      setTime(instantHour,instantMinute,instantSecond,instantDay,instantMonth,instantYear);
+      setTime(instantHour, instantMinute, instantSecond, instantDay, instantMonth, instantYear);
       displayInfo(modeClock);
     }
-    RTC.set(now()); // update RTC
-    buttonPressed=false;
+    RTC.set(now()); // update DS1307 RTC with new Time
+    buttonPressed = false;
     lcd.clear();
-    modeSwitch.write((mode-1)*4);
+    modeSwitch.write((mode - 1) * 4); // write current mode back to encoder
   }
+  
   // switch temp and pressure units
   else if ((mode==modeCoolantTemp || mode==modeInsideTemp || mode==modeOutsideTemp || mode==modeTransTemp || mode==modeOilTemp || mode==modeIntakeTemp || mode==modeOilPress) && buttonPressed==true)
   {
@@ -647,48 +673,49 @@ void loop()
     }
     EEPROM.write(useCelciusAddress,useCelcius); // store new value to EEPROM
   }
-  // change modes
+  
+  // if no button pressed, read Encoder and change modes
   else
   {
-    mode = modeSwitch.read()/4+1; // read encoder position and set mode
+    mode = modeSwitch.read() / 4 + 1; // read encoder position and set mode
     // loop around to first mode if reached the end
-    if (mode>modeMax)
+    if (mode > modeMax)
     {
-      mode=modeMin;
-      modeSwitch.write((mode-1)*4);
+      mode = modeMin;
+      modeSwitch.write((mode - 1) * 4);
     }
     // loop around to end mode if reached the beginning
-    else if (mode<modeMin)
+    else if (mode < modeMin)
     {
-      mode=modeMax;
-      modeSwitch.write((mode-1)*4);
+      mode = modeMax;
+      modeSwitch.write((mode - 1) * 4);
     }
     // check to see if new display mode is selected
-    if(mode!=previousMode)
+    if(mode != previousMode)
     {
-      previousMillis=0; // this will force immediate refresh instead of waiting for normal sensor update interval
-      previousMode=mode; // store new previous mode
+      previousMillis = 0; // this will force immediate refresh instead of waiting for normal sensor update interval
+      previousMode = mode; // store new previous mode
       lcd.clear();
       // start or stop counting interrupts for engine speed
       // only count interrrupts while showing the tach
-      if(mode==modeTach)
+      if(mode == modeTach)
       {
-        attachInterrupt(tachPin,countRPM,FALLING);
+        attachInterrupt(tachPin, countRPM, FALLING);
       }
       else
       {
         detachInterrupt(tachPin);
       }     
-      buttonPressed=false; // reset momentary button in case it was not
+      buttonPressed = false; // reset momentary button in case it was not
     }
   }
   
-  // refresh display
-  if(millis()-previousMillis>refreshInterval)
+  // refresh display if enough time has passed
+  if(millis() - previousMillis > refreshInterval)
   {
+    previousMillis = millis();
     setAutoBrightness(); 
-    writeLCDValues(); // modify screen brightness
-    previousMillis=millis();
+    writeLCDValues(); // write LCD values
     // display info depending on mode and font size
     if(lcdBigFont)
     {
@@ -744,13 +771,13 @@ void setRGBFromHue()
   }
 }
 
-// reads voltage supplied to instrument panel lights, changes LCD brightness accordingly
+// reads voltage supplied to instrument panel lights and changes LCD brightness accordingly
 void setAutoBrightness()
 {
   // only do this if feature is enabled in setttings
-  if(lcdAutoDim==1)
+  if(lcdAutoDim == 1)
   {
-    lcdBrightness=map(analogRead(autoDimPin),0,1023,0,100);
+    lcdBrightness=map(analogRead(autoDimPin), 0, 1023, 0, 100);
   }
 }
 
@@ -758,18 +785,19 @@ void setAutoBrightness()
 void writeLCDValues()
 {
   // contrast
-  analogWrite(lcdContrastPin,map(lcdContrast,0,100,255,0));
+  analogWrite(lcdContrastPin, map(lcdContrast, 0, 100, 255, 0));
   
   // modify RBG values based on current brightness
-  int r = map(lcdLEDRed,0,255,0,lcdBrightness);
-  int g = map(lcdLEDGreen,0,255,0,lcdBrightness);
-  int b = map(lcdLEDBlue,0,255,0,lcdBrightness);
+  int r = map(lcdLEDRed, 0, 255, 0, lcdBrightness);
+  int g = map(lcdLEDGreen, 0, 255, 0, lcdBrightness);
+  int b = map(lcdLEDBlue, 0, 255, 0, lcdBrightness);
   // set PWM values accordingly
-  analogWrite(lcdLEDRedPin,map(r,0,100,0,255));
-  analogWrite(lcdLEDGreenPin,map(g,0,100,0,200)); // compensate for brighter Green LED
-  analogWrite(lcdLEDBluePin,map(b,0,100,0,200)); // compensate for brighter Blue LED
+  analogWrite(lcdLEDRedPin, map(r, 0, 100, 0, 255));
+  analogWrite(lcdLEDGreenPin, map(g, 0, 100, 0, 200)); // compensate for brighter Green LED
+  analogWrite(lcdLEDBluePin, map(b, 0, 100, 0, 200)); // compensate for brighter Blue LED
 }
 
+// reads input voltage
 // returns battery voltage in Volts
 float getBattVoltage()
 {
@@ -790,6 +818,7 @@ float getBattVoltage()
   return Vin; // return calculated input Voltage
 }
 
+// reads voltage between oil pressure gauage and sensor
 // returns oil pressure in psi
 float getOilPress()
 {
@@ -811,6 +840,7 @@ float getOilPress()
   return pressure; // return pressure in psi
 }
 
+// reads voltage between fuel level gauge and sensor
 // returns Fuel Level in % 
 float getFuelLevel()
 {
@@ -833,6 +863,7 @@ float getFuelLevel()
   return level; // return fuel level in %
 }
 
+// reads voltage between coolant temp gauge and sensor
 // returns coolant temp in deg C
 float getCoolantTemp()
 {
@@ -890,8 +921,6 @@ void pressButton()
   }
 }
 
-
-
 // collects and displays sensor data using small font
 void displayInfo(int displayMode)
 {
@@ -902,34 +931,34 @@ void displayInfo(int displayMode)
       lcd.setCursor(0,0);
       lcd.print("Battery Voltage");
       float battVoltage = getBattVoltage();
-      lcd.setCursor(5,1);
-      if (battVoltage<10)
+      lcd.setCursor(5, 1);
+      if (battVoltage < 10)
       {
         lcd.print(" ");
       }
-      lcd.print(battVoltage,1);
+      lcd.print(battVoltage, 1);
       lcd.print(" V");
       break;
     }
     case modeOilPress: // oil pressure
     {
-      lcd.setCursor(2,0);
+      lcd.setCursor(2, 0);
       lcd.print("Oil Pressure");
       float oilPressure = getOilPress();
       if (useCelcius == 1)
       {
-        oilPressure = oilPressure*0.06895;
+        oilPressure = oilPressure * 0.06895; // convert to bar
       }
-      lcd.setCursor(3,1);
-      if(oilPressure<10)
+      lcd.setCursor(3, 1);
+      if(oilPressure < 10)
       {
         lcd.print("  ");
       }
-      else if(oilPressure<100)
+      else if(oilPressure < 100)
       {
         lcd.print(" ");
       }
-      lcd.print(oilPressure,1);
+      lcd.print(oilPressure, 1);
       if (useCelcius == 1)
       {
         lcd.print(" bar");
@@ -942,26 +971,26 @@ void displayInfo(int displayMode)
     }
     case modeCoolantTemp: // coolant temp
     {
-      lcd.setCursor(2,0);
+      lcd.setCursor(2, 0);
       lcd.print("Coolant Temp");
       float currentTemp = getCoolantTemp();
-      if (useCelcius==0)
+      if (useCelcius == 0)
       {
-        currentTemp=currentTemp*9.0/5.0+32.0;
+        currentTemp = currentTemp * 9.0 / 5.0 + 32.0; // convert to deg F
       }
-      lcd.setCursor(5,1);
-      if ((currentTemp<=-10 && currentTemp>-100) || (currentTemp>=10 && currentTemp<100))
+      lcd.setCursor(5, 1);
+      if ((currentTemp <= -10 && currentTemp > -100) || (currentTemp >= 10 && currentTemp < 100))
       {
         lcd.print(" ");
       }
-      else if (currentTemp<10 && currentTemp>-10)
+      else if (currentTemp < 10 && currentTemp > -10)
       {
         lcd.print("  ");
       }
-      lcd.print(currentTemp,0);
+      lcd.print(currentTemp, 0);
       lcd.print(" ");
-      lcd.write(char(223));
-      if (useCelcius==0)
+      lcd.write(char(223)); // degree symbol
+      if (useCelcius == 0)
       {
         lcd.print("F");
       }
@@ -973,26 +1002,26 @@ void displayInfo(int displayMode)
     }
     case modeOutsideTemp: // outside temp
     {
-      lcd.setCursor(2,0);
+      lcd.setCursor(2, 0);
       lcd.print("Outside Temp");
       float currentTemp = sensors.getTempC(outsideTempDigital);
-      if (useCelcius==0)
+      if (useCelcius == 0)
       {
-        currentTemp=currentTemp*9.0/5.0+32.0;
+        currentTemp = currentTemp * 9.0 / 5.0 + 32.0; // convert to deg F
       }
-      lcd.setCursor(5,1);
-      if ((currentTemp<=-10 && currentTemp>-100) || (currentTemp>=10 && currentTemp<100))
+      lcd.setCursor(5, 1);
+      if ((currentTemp <= -10 && currentTemp > -100) || (currentTemp >= 10 && currentTemp < 100))
       {
         lcd.print(" ");
       }
-      else if (currentTemp<10 && currentTemp>-10)
+      else if (currentTemp < 10 && currentTemp > -10)
       {
         lcd.print("  ");
       }
-      lcd.print(currentTemp,0);
+      lcd.print(currentTemp, 0);
       lcd.print(" ");
-      lcd.write(char(223));
-      if (useCelcius==0)
+      lcd.write(char(223)); // degree symbol
+      if (useCelcius == 0)
       {
         lcd.print("F");
       }
@@ -1000,31 +1029,31 @@ void displayInfo(int displayMode)
       {
         lcd.print("C");
       }
-      sensors.requestTemperatures();
+      sensors.requestTemperatures(); // request a temperature conversion
       break;
     }
     case modeInsideTemp: // inside temp
     {
-      lcd.setCursor(2,0);
+      lcd.setCursor(2, 0);
       lcd.print("Inside Temp");
       float currentTemp = sensors.getTempC(insideTempDigital);
-      if (useCelcius==0)
+      if (useCelcius == 0)
       {
-        currentTemp=currentTemp*9.0/5.0+32.0;
+        currentTemp = currentTemp * 9.0 / 5.0 + 32.0; // convert to deg F
       }
-      lcd.setCursor(5,1);
-      if ((currentTemp<=-10 && currentTemp>-100) || (currentTemp>=10 && currentTemp<100))
+      lcd.setCursor(5, 1);
+      if ((currentTemp <= -10 && currentTemp > -100) || (currentTemp >= 10 && currentTemp < 100))
       {
         lcd.print(" ");
       }
-      else if (currentTemp<10 && currentTemp>-10)
+      else if (currentTemp < 10 && currentTemp > -10)
       {
         lcd.print("  ");
       }
-      lcd.print(currentTemp,0);
+      lcd.print(currentTemp, 0);
       lcd.print(" ");
-      lcd.write(char(223));
-      if (useCelcius==0)
+      lcd.write(char(223)); // degree symbol
+      if (useCelcius == 0)
       {
         lcd.print("F");
       }
@@ -1032,31 +1061,31 @@ void displayInfo(int displayMode)
       {
         lcd.print("C");
       }
-      sensors.requestTemperatures();
+      sensors.requestTemperatures(); // request a temperature conversion
       break;
     }
     case modeOilTemp: // oil temp
     {
-      lcd.setCursor(4,0);
+      lcd.setCursor(4, 0);
       lcd.print("Oil Temp");
       float currentTemp = sensors.getTempC(oilTempDigital);
-      if (useCelcius==0)
+      if (useCelcius == 0)
       {
-        currentTemp=currentTemp*9.0/5.0+32.0;
+        currentTemp = currentTemp * 9.0 / 5.0 + 32.0; // convert to deg F
       }
-      lcd.setCursor(5,1);
-      if ((currentTemp<=-10 && currentTemp>-100) || (currentTemp>=10 && currentTemp<100))
+      lcd.setCursor(5, 1);
+      if ((currentTemp <= -10 && currentTemp > -100) || (currentTemp >= 10 && currentTemp < 100))
       {
         lcd.print(" ");
       }
-      else if (currentTemp<10 && currentTemp>-10)
+      else if (currentTemp < 10 && currentTemp > -10)
       {
         lcd.print("  ");
       }
-      lcd.print(currentTemp,0);
+      lcd.print(currentTemp, 0);
       lcd.print(" ");
-      lcd.write(char(223));
-      if (useCelcius==0)
+      lcd.write(char(223)); // degree symbol
+      if (useCelcius == 0)
       {
         lcd.print("F");
       }
@@ -1064,7 +1093,7 @@ void displayInfo(int displayMode)
       {
         lcd.print("C");
       }
-      sensors.requestTemperatures();
+      sensors.requestTemperatures(); // request a temperature conversion
       break;
     }
     case modeTransTemp: // transmission temp
@@ -1072,23 +1101,23 @@ void displayInfo(int displayMode)
       lcd.setCursor(2,0);
       lcd.print("Trans. Temp");
       float currentTemp = sensors.getTempC(transTempDigital);
-      if (useCelcius==0)
+      if (useCelcius == 0)
       {
-        currentTemp=currentTemp*9.0/5.0+32.0;
+        currentTemp = currentTemp * 9.0 / 5.0 + 32.0; // convert to deg F
       }
-      lcd.setCursor(5,1);
-      if ((currentTemp<=-10 && currentTemp>-100) || (currentTemp>=10 && currentTemp<100))
+      lcd.setCursor(5, 1);
+      if ((currentTemp <= -10 && currentTemp > -100) || (currentTemp >= 10 && currentTemp < 100))
       {
         lcd.print(" ");
       }
-      else if (currentTemp<10 && currentTemp>-10)
+      else if (currentTemp < 10 && currentTemp > -10)
       {
         lcd.print("  ");
       }
-      lcd.print(currentTemp,0);
+      lcd.print(currentTemp, 0);
       lcd.print(" ");
-      lcd.write(char(223));
-      if (useCelcius==0)
+      lcd.write(char(223)); // degree symbol
+      if (useCelcius == 0)
       {
         lcd.print("F");
       }
@@ -1101,49 +1130,49 @@ void displayInfo(int displayMode)
     }
     case modeTach: // engine speed
     {
-      lcd.setCursor(2,0);
+      lcd.setCursor(2, 0);
       lcd.print("Engine Speed");
-      float currentRPM = RPMpulses/(engineCylinders/2)*(60000.0/refreshInterval);
-      RPMpulses=0;
-      lcd.setCursor(4,1);
-      if(currentRPM<10)
+      int currentRPM = int(RPMpulses / (engineCylinders / 2) * (60000.0 / refreshInterval));
+      RPMpulses = 0; // reset pulses to 0 for next update cycle
+      lcd.setCursor(4, 1);
+      if(currentRPM < 10)
       {
         lcd.print("   ");
       }
-      else if(currentRPM<100)
+      else if(currentRPM < 100)
       {
         lcd.print("  ");
       }
-      else if(currentRPM<1000)
+      else if(currentRPM < 1000)
       {
         lcd.print(" ");
       }
-      lcd.print(currentRPM,0);
+      lcd.print(currentRPM, 0);
       lcd.print(" RPM");
       break;
     }
     case modeIntakeTemp: // intake temp
     {
-      lcd.setCursor(2,0);
+      lcd.setCursor(2, 0);
       lcd.print("Intake Temp");
       float currentTemp = sensors.getTempC(intakeTempDigital);
-      if (useCelcius==0)
+      if (useCelcius == 0)
       {
-        currentTemp=currentTemp*9.0/5.0+32.0;
+        currentTemp = currentTemp * 9.0 / 5.0 + 32.0; // convert to deg F
       }
       lcd.setCursor(5,1);
-      if ((currentTemp<=-10 && currentTemp>-100) || (currentTemp>=10 && currentTemp<100))
+      if ((currentTemp <= -10 && currentTemp > -100) || (currentTemp >= 10 && currentTemp < 100))
       {
         lcd.print(" ");
       }
-      else if (currentTemp<10 && currentTemp>-10)
+      else if (currentTemp < 10 && currentTemp > -10)
       {
         lcd.print("  ");
       }
-      lcd.print(currentTemp,0);
+      lcd.print(currentTemp, 0);
       lcd.print(" ");
-      lcd.write(char(223));
-      if (useCelcius==0)
+      lcd.write(char(223)); // degree symbol
+      if (useCelcius == 0)
       {
         lcd.print("F");
       }
@@ -1151,30 +1180,30 @@ void displayInfo(int displayMode)
       {
         lcd.print("C");
       }
-      sensors.requestTemperatures();
+      sensors.requestTemperatures(); // request a temperature conversion
       break;
     }
     case modeLCDSetup: // Display Settings
     {
-      lcd.setCursor(4,0);
+      lcd.setCursor(4, 0);
       lcd.print("Display");
-      lcd.setCursor(4,1);
+      lcd.setCursor(4, 1);
       lcd.print("Settings");
       break;
     }
     case modeSystemSetup: // System Settings
     {
-      lcd.setCursor(5,0);
+      lcd.setCursor(5, 0);
       lcd.print("System");
-      lcd.setCursor(4,1);
+      lcd.setCursor(4, 1);
       lcd.print("Settings");
       break;
     }
     case modeUseCelcius: // unit system
     {
-      lcd.setCursor(2,0);
+      lcd.setCursor(2, 0);
       lcd.print("Unit System");
-      lcd.setCursor(4,1);
+      lcd.setCursor(4, 1);
       if(useCelcius == 0)
       {
         lcd.print("English");
@@ -1187,22 +1216,21 @@ void displayInfo(int displayMode)
     }
     case modeClock: // Clock
     {
-      time_t currentTime = now();
+      time_t currentTime = now(); // store current time as time_t
       currentHour = hourFormat12(currentTime);
       currentMinute = minute(currentTime);
-      // currentSecond = second(currentTime);
       currentMonth = month(currentTime);
       currentDay = day(currentTime);
       currentYear = year(currentTime);
       byte currentDayOfWeek = weekday(currentTime);
       lcd.setCursor(4,0);
-      if(currentHour<10)
+      if(currentHour < 10)
       {
         lcd.print(" ");
       }
       lcd.print(currentHour);
       lcd.print(":");
-      if(currentMinute<10)
+      if(currentMinute < 10)
       {
         lcd.print("0");
       }
@@ -1216,7 +1244,7 @@ void displayInfo(int displayMode)
       {
         lcd.print("PM");
       }
-      lcd.setCursor(0,1);
+      lcd.setCursor(0, 1);
       switch (currentDayOfWeek)
       {
         case 1:
@@ -1320,7 +1348,7 @@ void displayInfo(int displayMode)
         }
       }
       lcd.print(" ");
-      if(currentDay<10)
+      if(currentDay < 10)
       {
         lcd.print(" ");
       }
@@ -1331,19 +1359,19 @@ void displayInfo(int displayMode)
     }
     case modeFuelLevel: //  Fuel Level
     {
-      lcd.setCursor(3,0);
+      lcd.setCursor(3, 0);
       lcd.print("Fuel Level");
       float fuelLevel = getFuelLevel();
-      lcd.setCursor(5,1);
-      if (fuelLevel<10)
+      lcd.setCursor(5, 1);
+      if (fuelLevel < 10)
       {
         lcd.print("  ");
       }
-      else if (fuelLevel<100)
+      else if (fuelLevel < 100)
       {
         lcd.print(" ");
       }
-      lcd.print(fuelLevel,0);
+      lcd.print(fuelLevel, 0);
       lcd.print(" %");
       break;
     }
@@ -1352,11 +1380,11 @@ void displayInfo(int displayMode)
       lcd.setCursor(3,0);
       lcd.print("LCD Color");
       lcd.setCursor(6,2);
-      if(lcdHue<10)
+      if(lcdHue < 10)
       {
         lcd.print("  ");
       }
-      else if (lcdHue<100)
+      else if (lcdHue < 100)
       {
         lcd.print(" ");
       }
@@ -1365,10 +1393,10 @@ void displayInfo(int displayMode)
     }
     case modeBigFont:
     {
-      lcd.setCursor(4,0);
+      lcd.setCursor(4, 0);
       lcd.print("Big Font");
-      lcd.setCursor(6,1);
-      if(lcdBigFont==0)
+      lcd.setCursor(6, 1);
+      if(lcdBigFont == 0)
       {
         lcd.print("OFF");
       }
@@ -1380,14 +1408,14 @@ void displayInfo(int displayMode)
     }
     case modeLCDBrightness: // LCD brightness
     {
-      lcd.setCursor(1,0);
+      lcd.setCursor(1, 0);
       lcd.print("LCD Brightness");
-      lcd.setCursor(6,1);
-      if (lcdBrightness<10)
+      lcd.setCursor(6, 1);
+      if (lcdBrightness < 10)
       {
         lcd.print("  ");
       }
-      else if (lcdBrightness<100)
+      else if (lcdBrightness < 100)
       {  
         lcd.print(" ");
       }
@@ -1396,14 +1424,14 @@ void displayInfo(int displayMode)
     }
     case modeLCDContrast: // LCD contrast
     {
-      lcd.setCursor(2,0);
+      lcd.setCursor(2, 0);
       lcd.print("LCD Contrast");
-      lcd.setCursor(6,1);
-      if (lcdContrast<10)
+      lcd.setCursor(6, 1);
+      if (lcdContrast < 10)
       {
         lcd.print("  ");
       }
-      else if (lcdContrast<100)
+      else if (lcdContrast < 100)
       {  
         lcd.print(" ");
       }
@@ -1412,10 +1440,10 @@ void displayInfo(int displayMode)
     }
     case modeLCDAutoDim: // LCD AutoDim ON/OFF
     {
-      lcd.setCursor(2,0);
+      lcd.setCursor(2, 0);
       lcd.print("LCD Auto Dim");
-      lcd.setCursor(6,1);
-      if(lcdAutoDim==0)
+      lcd.setCursor(6, 1);
+      if(lcdAutoDim == 0)
       {
         lcd.print("OFF");
       }
@@ -1427,9 +1455,9 @@ void displayInfo(int displayMode)
     }
     case modeEngineCylinders:
     {
-      lcd.setCursor(0,0);
+      lcd.setCursor(0, 0);
       lcd.print("Engine Cylinders");
-      lcd.setCursor(7,1);
+      lcd.setCursor(7, 1);
       if (engineCylinders < 10)
       {
         lcd.print(" ");
@@ -1439,15 +1467,15 @@ void displayInfo(int displayMode)
     }
     case modeAFRatio:
     {
-      lcd.setCursor(3,0);
+      lcd.setCursor(3, 0);
       lcd.print("A/F Ratio");
-      float currentAFRatio = getLambda()*14.7;
-      lcd.setCursor(6,1);
-      if (currentAFRatio<10)
+      float currentAFRatio = getLambda() * 14.7; // convert to Air/Fuel Ratio (Air/Gasoline)
+      lcd.setCursor(6, 1);
+      if (currentAFRatio < 10)
       {
         lcd.print(" ");
       }
-      lcd.print(currentAFRatio,1);
+      lcd.print(currentAFRatio, 1);
       break;
     }
   }
@@ -1460,9 +1488,10 @@ void displayInfoLarge(int displayMode)
   {
     case modeTach:
     {
-      int currentRPM = RPMpulses/(engineCylinders/2)*(60000.0/refreshInterval);
-      RPMpulses=0;
+      int currentRPM = int(RPMpulses / (engineCylinders / 2) * (60000.0 / refreshInterval)); // calculate RPM
+      RPMpulses = 0; // reset pulse count to 0
       
+      // extract digits
       byte RPMString[4];
       RPMString[3] = currentRPM%10;
       currentRPM /= 10;
@@ -1471,20 +1500,22 @@ void displayInfoLarge(int displayMode)
       RPMString[1] = currentRPM%10;
       currentRPM /= 10;
       RPMString[0] = currentRPM%10;
+      
+      // display value to LCD, without leading zeros
       boolean significantZero = false;
       for (int i = 0; i < 4; i++)
       {
-        if( RPMString[i]==0 && significantZero==false && i<3)
+        if(RPMString[i] == 0 && !significantZero && i < 3)
         {
-          clearLargeNumber(i*3);
+          clearLargeNumber(i * 3);
         }
         else
         {
-          displayLargeNumber(RPMString[i],i*3);
+          displayLargeNumber(RPMString[i], i * 3);
           significantZero = true;
         }
       }
-      lcd.setCursor(13,1);
+      lcd.setCursor(13, 1);
       lcd.print("RPM");
       break;
     }
