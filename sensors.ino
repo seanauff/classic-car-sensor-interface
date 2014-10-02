@@ -1,12 +1,35 @@
-#include <OneWire.h>
-#include <DallasTemperature.h>
-#include <Encoder.h>
-#include <LiquidCrystal.h>
-#include <EEPROM.h>
-#include <math.h>
-#include <Time.h>
-#include <Wire.h>
-#include <DS1307RTC.h>
+/*
+  sensors.ino - Software to collect and display automotive sensor data on 16x2 LCD. 
+  
+  Written for use on Arduino MEGA2560, requires additional hardware to run.
+  
+  GitHub project page: https://github.com/seanauff/classic-car-sensor-interface
+  
+  Copyright (C) 2014 Sean Auffinger
+ 
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
+// included library            // source
+#include <DallasTemperature.h> // http://www.hacktronics.com/Tutorials/arduino-1-wire-tutorial.html 
+#include <DS1307RTC.h>         // http://www.pjrc.com/teensy/td_libs_DS1307RTC.html 
+#include <EEPROM.h>            // http://arduino.cc/en/Reference/EEPROM 
+#include <Encoder.h>           // https://www.pjrc.com/teensy/td_libs_Encoder.html 
+#include <LiquidCrystal.h>     // http://arduino.cc/en/Reference/LiquidCrystal 
+#include <OneWire.h>           // http://www.hacktronics.com/Tutorials/arduino-1-wire-tutorial.html 
+#include <Time.h>              // http://www.pjrc.com/teensy/td_libs_Time.html 
+#include <Wire.h>              // http://arduino.cc/en/reference/wire 
 
 // EEPROM memory addresses
 const int lcdContrastAddress = 1;
@@ -23,10 +46,10 @@ const int tachPin = 1; // tach signal on interrupt 1 (digital pin 3)
 const int lcdContrastPin = 9; // contrast adjust on digital pin 9 (PWM)
 const int encoderPin1 = 18; // A leg of encoder on digital pin 18 (interrupt 5)
 const int encoderPin2 = 19; // B leg of encoder on digital pin 19 (interrupt 4)
-const int wireSDAPin = 20;
-const int wireSCLPin = 21;
-const int factoryResetPin = 22; // held HIGH by internal pullup, short to GND to reset to factory defualts during bootup 
-const int oneWirePin = 24; // data pin for 1-Wire devices
+const int wireSDAPin = 20; // I2C SDA
+const int wireSCLPin = 21; // I2c SCL
+const int factoryResetPin = 22; // held HIGH by internal pullup, short to GND during bootup to reset to factory defualts 
+const int oneWirePin = 24; // data pin for 1-Wire devices (DS18B20)
 const int lcdD7Pin = 38; // LCD D7 pin
 const int lcdD6Pin = 39; // LCD D6 pin
 const int lcdD5Pin = 40; // LCD D5 pin
@@ -43,32 +66,37 @@ const int oilPressPin = A1; // pin for oil pressure
 const int fuelLevelPin = A2; // pin for fuel level
 const int coolantTempPin = A3; // pin for coolant temp
 const int autoDimPin = A4; // pin for external brightness control
-const int AFRatioPin = A5; // pin for LSU 4.9 controller linear output
+const int AFRatioPin = A5; // pin for LSU 4.9 O2 sensor controller linear output
 
 // analog input setup
-const float regVoltage = 5.9; // insturment unit voltage regulator output
-const float oilGaugeOhms = 13.0; // resistance of oil pressure gauge
-const float fuelGaugeOhms = 13.0; // resistance of fuel level gauge
-const float coolantGaugeOhms = 13.0; // resistance of coolant temperature gauge
+const float regVoltage = 5.9; // instrument unit voltage regulator output (Volts)
+const float oilGaugeOhms = 13.0; // resistance of oil pressure gauge (ohms)
+const float fuelGaugeOhms = 13.0; // resistance of fuel level gauge (ohms)
+const float coolantGaugeOhms = 13.0; // resistance of coolant temperature gauge (ohms)
 
-// Steinhart–Hart equation paramerters for coolant temp sender
+// Steinhart–Hart equation parameters for coolant temp sender
+// http://en.wikipedia.org/wiki/Thermistor
 const float SHparamA = 1.459339e-3;
 const float SHparamB = 2.329463e-4;
 const float SHparamC = 9.355121e-8;
 
-// OneWire setup
+// OneWire setup (DS18B20)
 OneWire oneWire(oneWirePin);
 DallasTemperature sensors(&oneWire);
 DeviceAddress insideTempDigital = {0x28, 0xFF, 0x1B, 0x36, 0x2D, 0x04, 0x00, 0xBA};
+//DeviceAddress insideTempDigital = {0x22, 0xAB, 0x87, 0x21, 0x00, 0x00, 0x00, 0x54};
 DeviceAddress outsideTempDigital = {0x28, 0xFF, 0xDF, 0x33, 0x2B, 0x04, 0x00, 0xD7};
 DeviceAddress oilTempDigital = {0x28, 0xFF, 0xB5, 0x36, 0x2D, 0x04, 0x00, 0x2B};
 DeviceAddress intakeTempDigital = {0x28, 0xFF, 0xAF, 0x08, 0x2E, 0x04, 0x00, 0x53};
 DeviceAddress transTempDigital = {0x28, 0xFF, 0xD5, 0x33, 0x2B, 0x04, 0x00, 0x6A};
 
-// rotary encoder setup
-Encoder modeSwitch(encoderPin1,encoderPin2);
+// Encoder setup
+Encoder modeSwitch(encoderPin1, encoderPin2);
+
+// Display modes setup
 const int modeMin = 1;
 const int modeMax = 14; // number of modes
+
 // normal modes - this sets order
 const int modeClock = 1;
 const int modeBattVoltage = 2;
@@ -84,7 +112,9 @@ const int modeAFRatio = 11;
 const int modeFuelLevel = 12;
 const int modeLCDSetup = 13;
 const int modeSystemSetup = 14;
+
 // hidden modes - not in normal rotation (inside menus, etc.)
+const int modeUpdateFrequency = 92;
 const int modeUseCelcius = 93;
 const int modeEngineCylinders = 94;
 const int modeLCDColor = 95;
@@ -94,10 +124,18 @@ const int modeLCDContrast = 98;
 const int modeLCDAutoDim = 99;
 
 int mode = modeClock; // mode to start in
-int previousMode = mode;
+int previousMode = mode; // keep track of last mode to know when the mode changes to enable an immediate screen update
 
-// lcd setup
+// LCD setup
 LiquidCrystal lcd(lcdRSPin, lcdEPin, lcdD4Pin, lcdD5Pin, lcdD6Pin, lcdD7Pin);
+// default LCD values (changes stored in EEPROM)
+int lcdContrast = 80; // scale from 0-100, map to 0-255 for analogWrite()
+int lcdBrightness = 100; // scale from 0-100, map to 0-255 for analogWrite()
+int lcdHue = 72; // scale from 1-120, use setRGBFromHue() to set lcdLEDRed, lcdLEDGreen, lcdLEDBlue
+// variables for storing display RGB values calulated from setRGBFromHue()
+int lcdLEDRed; // scale from 0-255
+int lcdLEDGreen; // scale from 0-255
+int lcdLEDBlue; // scale from 0-255
 
 // custom characters for large font numbers
 byte leftSide[8] = 
@@ -189,15 +227,8 @@ byte lowerEnd[8] =
   B01111
 };
 
-int lcdContrast = 80; // scale from 0-100, map to 0-255 for analogWrite()
-int lcdBrightness = 100; // scale from 0-100
-int lcdHue = 72; // scale from 1-120
-int lcdLEDRed; // scale from 0-255
-int lcdLEDGreen; // scale from 0-255
-int lcdLEDBlue; // scale from 0-255
-
 // clock setup
-// default values if RTC not set
+// default values to use if RTC not set
 byte currentHour = 0;
 byte currentMinute = 0;
 byte currentSecond = 0;
@@ -205,36 +236,38 @@ byte currentMonth = 1;
 byte currentDay = 1;
 int currentYear = 2014;
 
-// personalization
-byte useCelcius = 0; // unit selector (deg F/deg C, psi/bar)
-byte lcdAutoDim = 0;
-byte lcdBigFont = 1;
-byte engineCylinders = 8; // for tach calculation
-const int refreshInterval = 750; // milliseconds between sensor updates
+// default personalization values (changes stored in EEPROM)
+byte useCelcius = 0; // unit selector: 0 = English, 1 = SI
+byte lcdAutoDim = 0; // automatic brightness adjust: 0 = OFF, 1 = ON
+byte lcdBigFont = 1; // Big Font: 0 = OFF, 1 = ON
+byte engineCylinders = 8; // for tach calculation (pulses per revolution = cylinders / 2)
+int refreshInterval = 750; // milliseconds between sensor updates
 
 // timing values
 unsigned long previousMillis = 0; // for sensor refresh interval
 unsigned long timeSwitchLastPressed = 0; // for switch debounce
-int switchDebounceInterval = 200; // time in ms where switch press will do nothing
+int switchDebounceInterval = 200; // time in milliseconds where switch press will do nothing
 
 // interrupt volatile variables
 volatile int RPMpulses = 0;
-volatile boolean buttonPressed=false;
+volatile boolean buttonPressed = false;
 
+// setup method, runs once at boot
 void setup()
 {
   pinMode(factoryResetPin, INPUT_PULLUP); // enable internal pullup on factory reset pin
-  if(digitalRead(factoryResetPin) == LOW) //if factory reset pin has been pulled LOW, clear EEPROM
+  // if factory reset pin has been pulled LOW, clear EEPROM
+  if(digitalRead(factoryResetPin) == LOW)
   {
-    EEPROM.write(lcdContrastAddress,255);
-    EEPROM.write(lcdBrightnessAddress,255);
-    EEPROM.write(lcdHueAddress,255);
-    EEPROM.write(useCelciusAddress,255);
-    EEPROM.write(lcdAutoDimAddress,255);
-    EEPROM.write(lcdBigFontAddress,255);
-    EEPROM.write(engineCylindersAddress,255);
+    EEPROM.write(lcdContrastAddress, 255);
+    EEPROM.write(lcdBrightnessAddress, 255);
+    EEPROM.write(lcdHueAddress, 255);
+    EEPROM.write(useCelciusAddress, 255);
+    EEPROM.write(lcdAutoDimAddress, 255);
+    EEPROM.write(lcdBigFontAddress, 255);
+    EEPROM.write(engineCylindersAddress, 255);
   }
-  // load values from EEPROM
+  // load values from EEPROM if they have been changed, otherwise, defaults will be used
   if (EEPROM.read(lcdContrastAddress) < 255)
   {
     lcdContrast = EEPROM.read(lcdContrastAddress);
@@ -263,20 +296,26 @@ void setup()
   {
     engineCylinders = EEPROM.read(engineCylindersAddress);
   }
+  
   // get RTC time
   setSyncProvider(RTC.get);
   // set default time if RTC not set
   if (timeStatus() != timeSet)
   {
-    setTime(currentHour,currentMinute,currentSecond,currentDay,currentMonth,currentYear);
+    setTime(currentHour, currentMinute, currentSecond, currentDay, currentMonth, currentYear);
   }
-  pinMode(2, INPUT_PULLUP);
-  pinMode(3, INPUT_PULLUP);
-  pinMode(lcdContrastPin,OUTPUT);
-  pinMode(lcdLEDRedPin,OUTPUT);
-  pinMode(lcdLEDGreenPin,OUTPUT);
-  pinMode(lcdLEDBluePin,OUTPUT);
-  lcd.begin(16, 2); //setup lcd
+  
+  // setup pins
+  pinMode(2, INPUT_PULLUP); // enable internal pullup for encoder switch pin
+  pinMode(3, INPUT_PULLUP); // enable internal pullup for tach pin
+  pinMode(lcdContrastPin, OUTPUT); // set lcdContrastPin as OUTPUT
+  pinMode(lcdLEDRedPin, OUTPUT); // set lcdLEDRedPin as OUTPUT
+  pinMode(lcdLEDGreenPin, OUTPUT); // set lcdLEDGreenPin as OUTPUT
+  pinMode(lcdLEDBluePin, OUTPUT); // set lcdLEDBluePin as OUTPUT
+  
+  lcd.begin(16, 2); // setup lcd with 16 columns, 2 rows
+  
+  // setup custom characters for Big Font use
   lcd.createChar(0,leftSide);
   lcd.createChar(1,upperBar);
   lcd.createChar(2,rightSide);
@@ -285,186 +324,42 @@ void setup()
   lcd.createChar(5,rightEnd);
   lcd.createChar(6,middleBar);
   lcd.createChar(7,lowerEnd);
-  TCCR2B = TCCR2B & 0b11111000 | 0x01; // sets pin 10 and 9 to frequency 31372.55 Hz
+  
+  TCCR2B = TCCR2B & 0b11111000 | 0x01; // sets Timer 2 PWM frequency to 31372.55 Hz (affects digital pins 9 and 10)
+  
+  // update LCD display values
   setRGBFromHue();
   writeLCDValues(); 
-  sensors.begin(); //setup DS18B20 sensors to 9 bit resolution
-  sensors.setResolution(insideTempDigital,9);
-  sensors.setResolution(outsideTempDigital,9);
-  sensors.setResolution(oilTempDigital,9);
-  sensors.setResolution(intakeTempDigital,9);
-  sensors.setResolution(transTempDigital,9);
-  attachInterrupt(switchPin,pressButton,FALLING);
   
-  modeSwitch.write((mode-1)*4);
-}
-
-void setRGBFromHue()
-{
-  lcdHue = constrain(lcdHue,1,120);
-  int hue = lcdHue;
-  if(hue<=20)
-  {
-    lcdLEDRed = 255;
-    lcdLEDGreen = map(hue,1,20,0,255);
-    lcdLEDBlue = 0;
-  }
-  else if (hue<=40)
-  {
-    lcdLEDRed = map(hue,21,40,255,0);
-    lcdLEDGreen = 255;
-    lcdLEDBlue = 0;
-  }
-  else if (hue<=60)
-  {
-    lcdLEDRed = 0;
-    lcdLEDGreen = 255;
-    lcdLEDBlue = map(hue,41,60,0,255);
-  }
-  else if (hue<=80)
-  {
-    lcdLEDRed = 0;
-    lcdLEDGreen = map(hue,61,80,255,0);
-    lcdLEDBlue = 255;
-  }
-  else if (hue<=100)
-  {
-    lcdLEDRed = map(hue,81,100,0,255);
-    lcdLEDGreen = 0;
-    lcdLEDBlue = 255;
-  }
-  else if (hue<=120)
-  {
-    lcdLEDRed = 255;
-    lcdLEDGreen = 0;
-    lcdLEDBlue = map(hue,101,120,255,0);
-  }
-}
-
-void setAutoBrightness()
-{
-  if(lcdAutoDim==1)
-  {
-    lcdBrightness=map(analogRead(autoDimPin),0,1023,0,100);
-  }
-}
-
-void writeLCDValues()
-{
-  // contrast
-  analogWrite(lcdContrastPin,map(lcdContrast,0,100,255,0));
+  // setup DS18B20 temperature sensors to 9 bit resolution (0.5 deg C resolution, 93.75 millisecond conversion time)
+  sensors.begin();
+  sensors.setResolution(insideTempDigital, 9);
+  sensors.setResolution(outsideTempDigital, 9);
+  sensors.setResolution(oilTempDigital, 9);
+  sensors.setResolution(intakeTempDigital, 9);
+  sensors.setResolution(transTempDigital, 9);
+  sensors.requestTemperatures(); // run first temperature conversion on all sensors
   
-  // brightness and color
-  int r = map(lcdLEDRed,0,255,0,lcdBrightness);
-  int g = map(lcdLEDGreen,0,255,0,lcdBrightness);
-  int b = map(lcdLEDBlue,0,255,0,lcdBrightness);
-  analogWrite(lcdLEDRedPin,map(r,0,100,0,255));
-  analogWrite(lcdLEDGreenPin,map(g,0,100,0,200));  
-  analogWrite(lcdLEDBluePin,map(b,0,100,0,200));
+  attachInterrupt(switchPin, pressButton, FALLING); // attach interrupt to encoder switch pin to listen for switch presses
+  
+  modeSwitch.write((mode - 1) * 4); // write intital mode to Encoder
 }
 
-float getBattVoltage() // returns battery voltage in volts
-{
-  float R1=100000.0;
-  float R2=38300.0;
-  int val = analogRead(battVoltagePin);
-  for (int i = 1;i<10;i++)
-  {
-    val += analogRead(battVoltagePin);
-  }
-  val /= 10;
-  float Vout = (val/1023.0)*5.0;
-  float Vin = Vout*(R1+R2)/R2;
-  return Vin;
-}
-
-float getOilPress() // returns Oil pressure in psi
-{
-  float R1=47000.0;
-  float R2=100000.0;
-  int val = analogRead(oilPressPin);
-  for (int i = 1;i<10;i++)
-  {
-    val += analogRead(oilPressPin);
-  }
-  val /= 10;
-  float Vout = val/1023.0*5.0;
-  float VI = Vout*(R1+R2)/R2;
-  float Rsender = VI*oilGaugeOhms/(regVoltage-VI);
-  float pressure = 108.4-0.56*Rsender; // sensor calibration curve
-  return pressure;
-}
-
-float getFuelLevel() // returns Fuel Level in % 
-{
-  float R1=47000.0;
-  float R2=100000.0;
-  int val = analogRead(fuelLevelPin);
-  for (int i = 1;i<10;i++)
-  {
-    val += analogRead(oilPressPin);
-  }
-  val /= 10;
-  float Vout = val/1023.0*5.0;
-  float VI = Vout*(R1+R2)/R2;
-  float Rsender = VI*fuelGaugeOhms/(regVoltage-VI);
-  float level = 108.4-0.56*Rsender; // sensor calibration curve
-  return level;
-}
-
-float getCoolantTemp() // returns coolant temp in deg C
-{
-  float R1=47000.0;
-  float R2=100000.0;
-  int val = analogRead(coolantTempPin);
-  for (int i = 1;i<10;i++)
-  {
-    val += analogRead(coolantTempPin);
-  }
-  val /= 10;
-  float Vout = val/1023.0*5.0;
-  float VI = Vout*(R1+R2)/R2;
-  float Rsender = VI*coolantGaugeOhms/(regVoltage-VI);
-  float temp = pow(SHparamA+SHparamB*log(Rsender)+SHparamC*pow(log(Rsender),3),-1)-273.15; // sensor calibration curve based on Steinhart–Hart equation
-  return temp;
-}
-
-float getLambda()
-{
-  int val = analogRead(AFRatioPin);
-  for (int i = 1;i<10;i++)
-  {
-    val += analogRead(AFRatioPin);
-  }
-  val /= 10;
-  return (map(val,0,1023,680,1360))/1000.0;
-}
-
-void countRPM()
-{
-  RPMpulses++;
-}
-
-void pressButton()
-{
-  if(millis()-timeSwitchLastPressed>switchDebounceInterval)
-  {
-    buttonPressed = true;
-    timeSwitchLastPressed=millis();
-  }
-}
-
+// main loop, runs continuously after setup()
 void loop()
 {
-  if(mode==modeLCDSetup && buttonPressed==true) // change lcd parameters
+  // change LCD parameters
+  if(mode == modeLCDSetup && buttonPressed)
   {
     buttonPressed=false;
     lcd.clear();
-    int previousBrightness = lcdBrightness;
-    modeSwitch.write((lcdHue-1)*4); // color
-    while(buttonPressed==false)
+    int previousBrightness = lcdBrightness; // store last brightness value
+    // change color
+    modeSwitch.write((lcdHue - 1) * 4); // write surrent lcdHue value to Encoder
+    // loop until button pressed
+    while(!buttonPressed)
     { 
-      lcdHue=modeSwitch.read()/4+1;
+      lcdHue = modeSwitch.read() / 4 + 1;
       if(lcdHue>120)
       {
         lcdHue=1;
@@ -610,7 +505,7 @@ void loop()
     modeSwitch.write((mode-1)*4);
     lcd.clear();
   }
-  else if (mode==modeClock && buttonPressed==true) //  set clock
+  else if (mode == modeClock && buttonPressed == true) //  set clock
   {
     lcd.clear();
     buttonPressed = false;
@@ -663,9 +558,9 @@ void loop()
       setTime(instantHour,instantMinute,instantSecond,instantDay,instantMonth,instantYear);
       displayInfo(modeClock);
     }
-    
     buttonPressed=false;
-    modeSwitch.write((instantMonth-1)*4); // set Month
+    // set Month
+    modeSwitch.write((instantMonth-1)*4);
     lcd.setCursor(0,0);
     lcd.print("     ");
     lcd.setCursor(0,0);
@@ -687,7 +582,8 @@ void loop()
       displayInfo(modeClock);
     }
     buttonPressed=false;
-    modeSwitch.write((instantDay-1)*4); // set Day
+    // set Day
+    modeSwitch.write((instantDay-1)*4);
     lcd.setCursor(0,0);
     lcd.print("     ");
     lcd.setCursor(0,0);
@@ -709,7 +605,8 @@ void loop()
       displayInfo(modeClock);
     }
     buttonPressed=false;
-    modeSwitch.write((instantYear-1)*4); // set Year
+    // set Year
+    modeSwitch.write((instantYear-1)*4);
     lcd.setCursor(0,0);
     lcd.print("     ");
     lcd.setCursor(0,0);
@@ -735,41 +632,8 @@ void loop()
     lcd.clear();
     modeSwitch.write((mode-1)*4);
   }
-  else
-  {
-    mode = modeSwitch.read()/4+1;
-    
-    if (mode>modeMax)
-    {
-      mode=modeMin;
-      modeSwitch.write((mode-1)*4);
-    }
-    if (mode<modeMin)
-    {
-      mode=modeMax;
-      modeSwitch.write((mode-1)*4);
-    }
-    
-    if(mode!=previousMode)
-    {
-      previousMillis=0;
-      previousMode=mode;
-      lcd.clear();
-      
-      if(mode==modeTach) // start or stop counting interrupts for engine speed
-      {
-        attachInterrupt(tachPin,countRPM,FALLING);
-      }
-      else
-      {
-        detachInterrupt(tachPin);
-      }     
-      buttonPressed=false; // reset momentary button
-    }
-  }
-  
   // switch temp and pressure units
-  if ((mode==modeCoolantTemp || mode==modeInsideTemp || mode==modeOutsideTemp || mode==modeTransTemp || mode==modeOilTemp || mode==modeIntakeTemp || mode==modeOilPress) && buttonPressed==true)
+  else if ((mode==modeCoolantTemp || mode==modeInsideTemp || mode==modeOutsideTemp || mode==modeTransTemp || mode==modeOilTemp || mode==modeIntakeTemp || mode==modeOilPress) && buttonPressed==true)
   {
     previousMillis=0; // forces an immediate value update
     buttonPressed=false; 
@@ -781,27 +645,254 @@ void loop()
     {
       useCelcius=0;
     }
-    EEPROM.write(useCelciusAddress,useCelcius);
+    EEPROM.write(useCelciusAddress,useCelcius); // store new value to EEPROM
+  }
+  // change modes
+  else
+  {
+    mode = modeSwitch.read()/4+1; // read encoder position and set mode
+    // loop around to first mode if reached the end
+    if (mode>modeMax)
+    {
+      mode=modeMin;
+      modeSwitch.write((mode-1)*4);
+    }
+    // loop around to end mode if reached the beginning
+    else if (mode<modeMin)
+    {
+      mode=modeMax;
+      modeSwitch.write((mode-1)*4);
+    }
+    // check to see if new display mode is selected
+    if(mode!=previousMode)
+    {
+      previousMillis=0; // this will force immediate refresh instead of waiting for normal sensor update interval
+      previousMode=mode; // store new previous mode
+      lcd.clear();
+      // start or stop counting interrupts for engine speed
+      // only count interrrupts while showing the tach
+      if(mode==modeTach)
+      {
+        attachInterrupt(tachPin,countRPM,FALLING);
+      }
+      else
+      {
+        detachInterrupt(tachPin);
+      }     
+      buttonPressed=false; // reset momentary button in case it was not
+    }
   }
   
-  // sensor readings for display
-  // modify screen brightness
+  // refresh display
   if(millis()-previousMillis>refreshInterval)
   {
-    setAutoBrightness();
-    writeLCDValues();
+    setAutoBrightness(); 
+    writeLCDValues(); // modify screen brightness
     previousMillis=millis();
-    if(lcdBigFont == false)
+    // display info depending on mode and font size
+    if(lcdBigFont)
     {
-      displayInfo(mode);
+      displayInfoLarge(mode);
     }
     else
     {
-      displayInfoLarge(mode);
+      displayInfo(mode);
     }
   }
 }
 
+// runs color conversion algorithm to set individual RGB values from single Hue value
+// http://en.wikipedia.org/wiki/HSL_and_HSV
+void setRGBFromHue()
+{
+  int hue = lcdHue;
+  if(hue <= 20)
+  {
+    lcdLEDRed = 255;
+    lcdLEDGreen = map(hue, 1, 20, 0, 255);
+    lcdLEDBlue = 0;
+  }
+  else if (hue<=40)
+  {
+    lcdLEDRed = map(hue, 21, 40, 255, 0);
+    lcdLEDGreen = 255;
+    lcdLEDBlue = 0;
+  }
+  else if (hue<=60)
+  {
+    lcdLEDRed = 0;
+    lcdLEDGreen = 255;
+    lcdLEDBlue = map(hue, 41, 60, 0, 255);
+  }
+  else if (hue<=80)
+  {
+    lcdLEDRed = 0;
+    lcdLEDGreen = map(hue, 61, 80, 255, 0);
+    lcdLEDBlue = 255;
+  }
+  else if (hue<=100)
+  {
+    lcdLEDRed = map(hue, 81, 100, 0, 255);
+    lcdLEDGreen = 0;
+    lcdLEDBlue = 255;
+  }
+  else if (hue<=120)
+  {
+    lcdLEDRed = 255;
+    lcdLEDGreen = 0;
+    lcdLEDBlue = map(hue, 101, 120, 255, 0);
+  }
+}
+
+// reads voltage supplied to instrument panel lights, changes LCD brightness accordingly
+void setAutoBrightness()
+{
+  // only do this if feature is enabled in setttings
+  if(lcdAutoDim==1)
+  {
+    lcdBrightness=map(analogRead(autoDimPin),0,1023,0,100);
+  }
+}
+
+// updates LCD display values
+void writeLCDValues()
+{
+  // contrast
+  analogWrite(lcdContrastPin,map(lcdContrast,0,100,255,0));
+  
+  // modify RBG values based on current brightness
+  int r = map(lcdLEDRed,0,255,0,lcdBrightness);
+  int g = map(lcdLEDGreen,0,255,0,lcdBrightness);
+  int b = map(lcdLEDBlue,0,255,0,lcdBrightness);
+  // set PWM values accordingly
+  analogWrite(lcdLEDRedPin,map(r,0,100,0,255));
+  analogWrite(lcdLEDGreenPin,map(g,0,100,0,200)); // compensate for brighter Green LED
+  analogWrite(lcdLEDBluePin,map(b,0,100,0,200)); // compensate for brighter Blue LED
+}
+
+// returns battery voltage in Volts
+float getBattVoltage()
+{
+  // Voltage divider maps 18 V to 5 V
+  // resolution of input voltage: 0.0176 V
+  float R1 = 100000.0; // value of R1 in voltage divider (ohms)
+  float R2 = 38300.0; // value of R2 in voltage divider (ohms)
+  // take 10 readings and sum them
+  int val;
+  for (int i = 1 ; i <= 10 ; i++)
+  {
+    val += analogRead(battVoltagePin);
+  }
+  val += 5; // allows proper rounding due to using integer math
+  val /= 10; // get average value
+  float Vout = (val / 1023.0) * 5.0; // convert 10-bit value to Voltage
+  float Vin = Vout * (R1 + R2) / R2; // solve for input Voltage
+  return Vin; // return calculated input Voltage
+}
+
+// returns oil pressure in psi
+float getOilPress()
+{
+  // Voltage divider maps 6.1 V to 5 V
+  float R1 = 22000.0; // value of R1 in voltage divider (ohms)
+  float R2 = 100000.0; // value of R2 in voltage divider (ohms)
+  // take 10 readings and sum them
+  int val;
+  for (int i = 1 ; i <= 10 ; i++)
+  {
+    val += analogRead(oilPressPin);
+  }
+  val += 5; // allows proper rounding due to using integer math
+  val /= 10; // get average value
+  float Vout = val / 1023.0 * 5.0; // convert 10-bit value to Voltage
+  float VI = Vout * (R1 + R2) / R2; // solve for input Voltage
+  float Rsender = VI * oilGaugeOhms / (regVoltage - VI); // solve for sensor resistance
+  float pressure = 108.4 - 0.56 * Rsender; // solve for pressure based on calibration curve
+  return pressure; // return pressure in psi
+}
+
+// returns Fuel Level in % 
+float getFuelLevel()
+{
+  // Voltage divider maps 6.1 V to 5 V
+  float R1 = 22000.0; // value of R1 in voltage divider (ohms)
+  float R2 = 100000.0; // value of R2 in voltage divider (ohms)
+  // take 10 readings and sum them
+  int val;
+  for (int i = 1 ; i <= 10 ; i++)
+  {
+    val += analogRead(oilPressPin);
+  }
+  val += 5; // allows proper rounding due to using integer math
+  val /= 10; // get average value
+  float Vout = val / 1023.0 * 5.0; // convert 10-bit value to Voltage
+  float VI = Vout * (R1 + R2) / R2; // solve for input Voltage
+  float Rsender = VI * fuelGaugeOhms / (regVoltage - VI); // solve for sensor resistance
+  float level = 108.4 - 0.56 * Rsender; // solve for fuel level based on calibration curve
+  level = constrain(level, 0, 100); // constrain level to between 0 and 100 (inclusive)
+  return level; // return fuel level in %
+}
+
+// returns coolant temp in deg C
+float getCoolantTemp()
+{
+  // Voltage divider maps 6.1 V to 5 V
+  float R1 = 22000.0; // value of R1 in voltage divider (ohms)
+  float R2 = 100000.0; // value of R2 in voltage divider (ohms)
+  // take 10 readings and sum them
+  int val;
+  for (int i = 1 ; i <= 10 ; i++)
+  {
+    val += analogRead(coolantTempPin);
+  }
+  val += 5; // allows proper rounding due to using integer math
+  val /= 10; // get average value
+  float Vout = val / 1023.0 * 5.0; // convert 10-bit value to Voltage
+  float VI = Vout * (R1 + R2) / R2; // solve for input Voltage
+  float Rsender = VI * coolantGaugeOhms / (regVoltage - VI); // solve for sensor resistance
+  float temp = pow(SHparamA + SHparamB * log(Rsender) + SHparamC * pow(log(Rsender),3),-1) - 273.15; // solve for temperature based on calibration curve based on Steinhart–Hart equation
+  return temp; // return temp in deg C
+}
+
+// reads analog output of LSU 4.9 O2 sensor driver (0-5 V)
+// 0 V = 0.68 lambda
+// 5 V = 1.36 lambda
+// returns Lambda value (dimensionless)
+float getLambda()
+{
+  // take 10 readings and sum them
+  int val;
+  for (int i = 1 ; i <= 10 ; i++)
+  {
+    val += analogRead(AFRatioPin);
+  }
+  val += 5; // allows proper rounding due to using integer math
+  val /= 10; // get average value
+  return (map(val,0,1023,680,1360))/1000.0; // return calculated lambda value avoiding limitations of map()
+}
+
+// Interrupt Service Routine
+// counts tach pulses
+void countRPM()
+{
+  RPMpulses++;
+}
+
+// Interrupt Service Routine
+// handles Encoder button press
+void pressButton()
+{
+  // ignores multiple button presses in quick succession (interval defined above: switchDebounceInterval)
+  if(millis()-timeSwitchLastPressed>switchDebounceInterval)
+  {
+    buttonPressed = true;
+    timeSwitchLastPressed=millis();
+  }
+}
+
+
+
+// collects and displays sensor data using small font
 void displayInfo(int displayMode)
 {
   switch (displayMode)
@@ -909,6 +1000,7 @@ void displayInfo(int displayMode)
       {
         lcd.print("C");
       }
+      sensors.requestTemperatures();
       break;
     }
     case modeInsideTemp: // inside temp
@@ -940,6 +1032,7 @@ void displayInfo(int displayMode)
       {
         lcd.print("C");
       }
+      sensors.requestTemperatures();
       break;
     }
     case modeOilTemp: // oil temp
@@ -971,6 +1064,7 @@ void displayInfo(int displayMode)
       {
         lcd.print("C");
       }
+      sensors.requestTemperatures();
       break;
     }
     case modeTransTemp: // transmission temp
@@ -1002,6 +1096,7 @@ void displayInfo(int displayMode)
       {
         lcd.print("C");
       }
+      sensors.requestTemperatures();
       break;
     }
     case modeTach: // engine speed
@@ -1056,6 +1151,7 @@ void displayInfo(int displayMode)
       {
         lcd.print("C");
       }
+      sensors.requestTemperatures();
       break;
     }
     case modeLCDSetup: // Display Settings
@@ -1238,7 +1334,6 @@ void displayInfo(int displayMode)
       lcd.setCursor(3,0);
       lcd.print("Fuel Level");
       float fuelLevel = getFuelLevel();
-      fuelLevel = constrain(fuelLevel,0,100);
       lcd.setCursor(5,1);
       if (fuelLevel<10)
       {
@@ -1358,6 +1453,7 @@ void displayInfo(int displayMode)
   }
 }
 
+// collect and display info using large font
 void displayInfoLarge(int displayMode)
 {
   switch (displayMode)
@@ -1395,7 +1491,6 @@ void displayInfoLarge(int displayMode)
     case modeFuelLevel:
     {
       float fuelLevel = getFuelLevel();
-      fuelLevel = constrain(fuelLevel,0,100);
       int fuelLevelInt = int(fuelLevel);
       byte fuelString[3];
       fuelString[2] = fuelLevelInt%10;
@@ -1597,6 +1692,7 @@ void displayInfoLarge(int displayMode)
         lcd.setCursor(0,0);
         lcd.print("-");
       }
+      sensors.requestTemperatures();
       break;
     }
     case modeOilTemp:
@@ -1649,6 +1745,7 @@ void displayInfoLarge(int displayMode)
         lcd.setCursor(0,0);
         lcd.print("-");
       }
+      sensors.requestTemperatures();
       break;
     }
     case modeCoolantTemp:
@@ -1753,6 +1850,7 @@ void displayInfoLarge(int displayMode)
         lcd.setCursor(0,0);
         lcd.print("-");
       }
+      sensors.requestTemperatures();
       break;
     }
     case modeOutsideTemp:
@@ -1805,6 +1903,7 @@ void displayInfoLarge(int displayMode)
         lcd.setCursor(0,0);
         lcd.print("-");
       }
+      sensors.requestTemperatures();
       break;
     }
     case modeTransTemp:
@@ -1857,6 +1956,7 @@ void displayInfoLarge(int displayMode)
         lcd.setCursor(0,0);
         lcd.print("-");
       }
+      sensors.requestTemperatures();
       break;
     }
     case modeAFRatio:
@@ -1909,6 +2009,7 @@ void displayInfoLarge(int displayMode)
     }
   }
 }
+
 void displayLargeNumber(byte n, byte x) // n is number to display, x is column of upper left corner for large character
 {
   switch (n)
