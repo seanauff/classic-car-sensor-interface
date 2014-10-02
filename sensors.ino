@@ -81,10 +81,10 @@ const float SHparamB = 2.329463e-4;
 const float SHparamC = 9.355121e-8;
 
 // OneWire setup (DS18B20)
-OneWire oneWire(oneWirePin);
-DallasTemperature sensors(&oneWire);
+OneWire oneWire(oneWirePin); // create OneWire object
+DallasTemperature sensors(&oneWire); // create DallasTemperature object and pass OneWire object to it
+// define sensor addresses
 DeviceAddress insideTempDigital = {0x28, 0xFF, 0x1B, 0x36, 0x2D, 0x04, 0x00, 0xBA};
-//DeviceAddress insideTempDigital = {0x22, 0xAB, 0x87, 0x21, 0x00, 0x00, 0x00, 0x54};
 DeviceAddress outsideTempDigital = {0x28, 0xFF, 0xDF, 0x33, 0x2B, 0x04, 0x00, 0xD7};
 DeviceAddress oilTempDigital = {0x28, 0xFF, 0xB5, 0x36, 0x2D, 0x04, 0x00, 0x2B};
 DeviceAddress intakeTempDigital = {0x28, 0xFF, 0xAF, 0x08, 0x2E, 0x04, 0x00, 0x53};
