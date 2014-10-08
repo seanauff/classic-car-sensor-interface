@@ -76,9 +76,9 @@ const float coolantGaugeOhms = 13.0; // resistance of coolant temperature gauge 
 
 // Steinhart–Hart equation parameters for coolant temp sender
 // http://en.wikipedia.org/wiki/Thermistor
-const float SHparamA = 1.459339e-3;
-const float SHparamB = 2.329463e-4;
-const float SHparamC = 9.355121e-8;
+const float SHparamA = 1.869336e-3;
+const float SHparamB = 2.723037e-4;
+const float SHparamC = 2.833889e-7;
 
 // OneWire setup (DS18B20)
 OneWire oneWire(oneWirePin); // create OneWire object
@@ -343,6 +343,8 @@ void setup()
   attachInterrupt(switchPin, pressButton, FALLING); // attach interrupt to encoder switch pin to listen for switch presses
   
   modeSwitch.write((mode - 1) * 4); // write intital mode to Encoder
+  
+  Serial.begin(9600);
 }
 
 // main loop, runs continuously after setup()
@@ -806,7 +808,7 @@ float getBattVoltage()
   float R1 = 100000.0; // value of R1 in voltage divider (ohms)
   float R2 = 38300.0; // value of R2 in voltage divider (ohms)
   // take 10 readings and sum them
-  int val;
+  int val = 0;
   for (int i = 1 ; i <= 10 ; i++)
   {
     val += analogRead(battVoltagePin);
@@ -826,7 +828,7 @@ float getOilPress()
   float R1 = 22000.0; // value of R1 in voltage divider (ohms)
   float R2 = 100000.0; // value of R2 in voltage divider (ohms)
   // take 10 readings and sum them
-  int val;
+  int val = 0;
   for (int i = 1 ; i <= 10 ; i++)
   {
     val += analogRead(oilPressPin);
@@ -848,7 +850,7 @@ float getFuelLevel()
   float R1 = 22000.0; // value of R1 in voltage divider (ohms)
   float R2 = 100000.0; // value of R2 in voltage divider (ohms)
   // take 10 readings and sum them
-  int val;
+  int val = 0;
   for (int i = 1 ; i <= 10 ; i++)
   {
     val += analogRead(oilPressPin);
@@ -871,7 +873,7 @@ float getCoolantTemp()
   float R1 = 22000.0; // value of R1 in voltage divider (ohms)
   float R2 = 100000.0; // value of R2 in voltage divider (ohms)
   // take 10 readings and sum them
-  int val;
+  int val = 0;
   for (int i = 1 ; i <= 10 ; i++)
   {
     val += analogRead(coolantTempPin);
@@ -882,6 +884,7 @@ float getCoolantTemp()
   float VI = Vout * (R1 + R2) / R2; // solve for input Voltage
   float Rsender = VI * coolantGaugeOhms / (regVoltage - VI); // solve for sensor resistance
   float temp = pow(SHparamA + SHparamB * log(Rsender) + SHparamC * pow(log(Rsender),3),-1) - 273.15; // solve for temperature based on calibration curve based on Steinhart–Hart equation
+  Serial.println(temp);
   return temp; // return temp in deg C
 }
 
@@ -892,14 +895,15 @@ float getCoolantTemp()
 float getLambda()
 {
   // take 10 readings and sum them
-  int val;
+  int val = 0;
   for (int i = 1 ; i <= 10 ; i++)
   {
     val += analogRead(AFRatioPin);
   }
   val += 5; // allows proper rounding due to using integer math
   val /= 10; // get average value
-  return (map(val,0,1023,680,1360))/1000.0; // return calculated lambda value avoiding limitations of map()
+  float lambda = (map(val, 0, 1023, 680, 1360)) / 1000.0; // calculate lambda value avoiding limitations of map()
+  return lambda;
 }
 
 // Interrupt Service Routine
@@ -1469,7 +1473,7 @@ void displayInfo(int displayMode)
     {
       lcd.setCursor(3, 0);
       lcd.print("A/F Ratio");
-      float currentAFRatio = getLambda() * 14.7; // convert to Air/Fuel Ratio (Air/Gasoline)
+      float currentAFRatio = getLambda() * 14.7; // convert to Air/Fuel Mass Ratio (Air/Gasoline)
       lcd.setCursor(6, 1);
       if (currentAFRatio < 10)
       {
@@ -1992,8 +1996,8 @@ void displayInfoLarge(int displayMode)
     }
     case modeAFRatio:
     {
-      float currentAFRatio = getLambda()*14.7;
-      currentAFRatio *=10;
+      float currentAFRatio = getLambda() * 14.7;
+      currentAFRatio *= 10;
       int currentAFRatioInt = int(currentAFRatio);
       byte AFRString[3];
       AFRString[2] = currentAFRatioInt%10;
@@ -2002,21 +2006,21 @@ void displayInfoLarge(int displayMode)
       currentAFRatioInt /= 10;
       AFRString[0] = currentAFRatioInt%10;
       boolean significantZero = false;
-      for (int i = 0; i < 2; i++)
+      for (int i = 0 ; i < 2 ; i++)
       {
-        if( AFRString[i]==0 && significantZero==false && i<1)
+        if( AFRString[i] == 0 && significantZero == false && i < 1)
         {
-          clearLargeNumber(i*3);
+          clearLargeNumber(i * 3);
         }
         else
         {
-          displayLargeNumber(AFRString[i],i*3);
+          displayLargeNumber(AFRString[i], i * 3);
           significantZero = true;
         }
       }
-      lcd.setCursor(9,0);
+      lcd.setCursor(9, 0);
       lcd.print("A/F");
-      lcd.setCursor(6,1);
+      lcd.setCursor(6, 1);
       lcd.print(".");
       lcd.print(AFRString[2]);
       lcd.print(" Ratio");
