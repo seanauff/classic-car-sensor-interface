@@ -839,6 +839,7 @@ float getOilPress()
   float VI = Vout * (R1 + R2) / R2; // solve for input Voltage
   float Rsender = VI * oilGaugeOhms / (regVoltage - VI); // solve for sensor resistance
   float pressure = 108.4 - 0.56 * Rsender; // solve for pressure based on calibration curve
+  pressure = max(pressure, 0); // constrain lower bound to 0
   return pressure; // return pressure in psi
 }
 
@@ -1151,7 +1152,7 @@ void displayInfo(int displayMode)
       {
         lcd.print(" ");
       }
-      lcd.print(currentRPM, 0);
+      lcd.print(currentRPM);
       lcd.print(" RPM");
       break;
     }
@@ -1475,10 +1476,6 @@ void displayInfo(int displayMode)
       lcd.print("A/F Ratio");
       float currentAFRatio = getLambda() * 14.7; // convert to Air/Fuel Mass Ratio (Air/Gasoline)
       lcd.setCursor(6, 1);
-      if (currentAFRatio < 10)
-      {
-        lcd.print(" ");
-      }
       lcd.print(currentAFRatio, 1);
       break;
     }
@@ -1497,13 +1494,13 @@ void displayInfoLarge(int displayMode)
       
       // extract digits
       byte RPMString[4];
-      RPMString[3] = currentRPM%10;
+      RPMString[3] = currentRPM % 10;
       currentRPM /= 10;
-      RPMString[2] = currentRPM%10;
+      RPMString[2] = currentRPM % 10;
       currentRPM /= 10;
-      RPMString[1] = currentRPM%10;
+      RPMString[1] = currentRPM % 10;
       currentRPM /= 10;
-      RPMString[0] = currentRPM%10;
+      RPMString[0] = currentRPM % 10;
       
       // display value to LCD, without leading zeros
       boolean significantZero = false;
@@ -1526,29 +1523,29 @@ void displayInfoLarge(int displayMode)
     case modeFuelLevel:
     {
       float fuelLevel = getFuelLevel();
-      int fuelLevelInt = int(fuelLevel);
+      int fuelLevelInt = int(fuelLevel + 0.5); // convert to int with rounding
       byte fuelString[3];
-      fuelString[2] = fuelLevelInt%10;
+      fuelString[2] = fuelLevelInt % 10;
       fuelLevelInt /= 10;
-      fuelString[1] = fuelLevelInt%10;
+      fuelString[1] = fuelLevelInt % 10;
       fuelLevelInt /= 10;
-      fuelString[0] = fuelLevelInt%10;
+      fuelString[0] = fuelLevelInt % 10;
       boolean significantZero = false;
       for (int i = 0; i < 3; i++)
       {
-        if( fuelString[i]==0 && significantZero==false && i<2)
+        if( fuelString[i] == 0 && !significantZero && i < 2)
         {
-          clearLargeNumber(i*3);
+          clearLargeNumber(i * 3);
         }
         else
         {
-          displayLargeNumber(fuelString[i],i*3);
+          displayLargeNumber(fuelString[i], i * 3);
           significantZero = true;
         }
       }
-      lcd.setCursor(10,0);
+      lcd.setCursor(10, 0);
       lcd.print("Fuel");
-      lcd.setCursor(10,1);
+      lcd.setCursor(10, 1);
       lcd.print("%");
       break;
     }
@@ -1556,7 +1553,7 @@ void displayInfoLarge(int displayMode)
     {
       float battVoltage = getBattVoltage();
       battVoltage *=10;
-      int battVoltageInt = int(battVoltage);
+      int battVoltageInt = int(battVoltage + 0.5);
       byte battString[3];
       battString[2] = battVoltageInt%10;
       battVoltageInt /= 10;
@@ -1592,7 +1589,7 @@ void displayInfoLarge(int displayMode)
         oilPressure = oilPressure*0.06895;
       }
       oilPressure *= 10;
-      int oilPressureInt = int(oilPressure);
+      int oilPressureInt = int(oilPressure + 0.5);
       byte oilString[4];
       oilString[3] = oilPressureInt%10;
       oilPressureInt /= 10;
@@ -1604,7 +1601,7 @@ void displayInfoLarge(int displayMode)
       boolean significantZero = false;
       for (int i = 0; i < 3; i++)
       {
-        if( oilString[i]==0 && significantZero==false && i<2)
+        if( oilString[i] == 0 && significantZero == false && i < 2)
         {
           clearLargeNumber(i*3);
         }
@@ -1690,7 +1687,7 @@ void displayInfoLarge(int displayMode)
         isNegative = true;
         currentTemp = abs(currentTemp);
       }
-      int currentTempInt = int(currentTemp);
+      int currentTempInt = int(currentTemp + 0.5);
       byte tempString[3];
       tempString[2] = currentTempInt%10;
       currentTempInt /= 10;
@@ -1743,7 +1740,7 @@ void displayInfoLarge(int displayMode)
         isNegative = true;
         currentTemp = abs(currentTemp);
       }
-      int currentTempInt = int(currentTemp);
+      int currentTempInt = int(currentTemp + 0.5);
       byte tempString[3];
       tempString[2] = currentTempInt%10;
       currentTempInt /= 10;
@@ -1796,7 +1793,7 @@ void displayInfoLarge(int displayMode)
         isNegative = true;
         currentTemp = abs(currentTemp);
       }
-      int currentTempInt = int(currentTemp);
+      int currentTempInt = int(currentTemp + 0.5);
       byte tempString[3];
       tempString[2] = currentTempInt%10;
       currentTempInt /= 10;
@@ -1848,7 +1845,7 @@ void displayInfoLarge(int displayMode)
         isNegative = true;
         currentTemp = abs(currentTemp);
       }
-      int currentTempInt = int(currentTemp);
+      int currentTempInt = int(currentTemp + 0.5);
       byte tempString[3];
       tempString[2] = currentTempInt%10;
       currentTempInt /= 10;
@@ -1901,7 +1898,7 @@ void displayInfoLarge(int displayMode)
         isNegative = true;
         currentTemp = abs(currentTemp);
       }
-      int currentTempInt = int(currentTemp);
+      int currentTempInt = int(currentTemp + 0.5);
       byte tempString[3];
       tempString[2] = currentTempInt%10;
       currentTempInt /= 10;
@@ -1944,17 +1941,17 @@ void displayInfoLarge(int displayMode)
     case modeTransTemp:
     {
       float currentTemp = sensors.getTempC(transTempDigital);
-      if (useCelcius==0)
+      if (useCelcius == 0)
       {
-        currentTemp=currentTemp*9.0/5.0+32.0;
+        currentTemp = currentTemp * 9.0 / 5.0 + 32.0; // convert to deg F
       }
       boolean isNegative = false;
-      if(currentTemp<0)
+      if(currentTemp < 0)
       {
         isNegative = true;
         currentTemp = abs(currentTemp);
       }
-      int currentTempInt = int(currentTemp);
+      int currentTempInt = int(currentTemp + 0.5);
       byte tempString[3];
       tempString[2] = currentTempInt%10;
       currentTempInt /= 10;
@@ -1964,13 +1961,13 @@ void displayInfoLarge(int displayMode)
       boolean significantZero = false;
       for (int i = 0; i < 3; i++)
       {
-        if( tempString[i]==0 && significantZero==false && i<2)
+        if(tempString[i] == 0 && significantZero == false && i < 2)
         {
           clearLargeNumber(i*3);
         }
         else
         {
-          displayLargeNumber(tempString[i],i*3);
+          displayLargeNumber(tempString[i], i * 3);
           significantZero = true;
         }
       }
@@ -1996,9 +1993,9 @@ void displayInfoLarge(int displayMode)
     }
     case modeAFRatio:
     {
-      float currentAFRatio = getLambda() * 14.7;
+      float currentAFRatio = getLambda() * 14.7; // convert to Air/Fuel Mass Ratio (Air/Gasoline)
       currentAFRatio *= 10;
-      int currentAFRatioInt = int(currentAFRatio);
+      int currentAFRatioInt = int(currentAFRatio + 0.5);
       byte AFRString[3];
       AFRString[2] = currentAFRatioInt%10;
       currentAFRatioInt /= 10;
