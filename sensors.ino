@@ -39,6 +39,7 @@ const int useCelciusAddress = 4;
 const int lcdAutoDimAddress = 5;
 const int lcdBigFontAddress = 6;
 const int engineCylindersAddress = 7;
+const int refreshIntervalAddress = 8;
 
 // digital pins
 const int switchPin = 0; // momentary switch on interrupt 0 (digital pin 2)
@@ -114,7 +115,7 @@ const int modeLCDSetup = 13;
 const int modeSystemSetup = 14;
 
 // hidden modes - not in normal rotation (inside menus, etc.)
-const int modeUpdateFrequency = 92;
+const int modeRefreshInterval = 92;
 const int modeUseCelcius = 93;
 const int modeEngineCylinders = 94;
 const int modeLCDColor = 95;
@@ -266,8 +267,9 @@ void setup()
     EEPROM.write(lcdAutoDimAddress, 255);
     EEPROM.write(lcdBigFontAddress, 255);
     EEPROM.write(engineCylindersAddress, 255);
+    EEPROM.write(refreshIntervalAddress, 255);
   }
-  // load values from EEPROM if they have been changed, otherwise, defaults will be used
+  // load values from EEPROM if they have been changed from default, otherwise, defaults will be used
   if (EEPROM.read(lcdContrastAddress) < 255)
   {
     lcdContrast = EEPROM.read(lcdContrastAddress);
@@ -296,16 +298,20 @@ void setup()
   {
     engineCylinders = EEPROM.read(engineCylindersAddress);
   }
+  if (EEPROM.read(refreshIntervalAddress) < 255)
+  {
+    refreshInterval = EEPROM.read(refreshIntervalAddress) * 10; // value is stored in centiseconds (0.01 s) to fit into a byte. Multiple by 10 to get value in milliseconds
+  }
   
   // get RTC time
   setSyncProvider(RTC.get);
-  // set default time if RTC not set
+  // set time to default if RTC not set
   if (timeStatus() != timeSet)
   {
     setTime(currentHour, currentMinute, currentSecond, currentDay, currentMonth, currentYear);
   }
   
-  // setup pins
+  // setup digital pins
   pinMode(2, INPUT_PULLUP); // enable internal pullup for encoder switch pin
   pinMode(3, INPUT_PULLUP); // enable internal pullup for tach pin
   pinMode(lcdContrastPin, OUTPUT); // set lcdContrastPin as OUTPUT
@@ -353,7 +359,7 @@ void loop()
   // change LCD parameters if button pressed while displaying LCD setup
   if(mode == modeLCDSetup && buttonPressed)
   {
-    buttonPressed=false;
+    buttonPressed = false;
     lcd.clear();
     int previousBrightness = lcdBrightness; // store last brightness value
     // change color
@@ -388,7 +394,7 @@ void loop()
     while(!buttonPressed)
     {
       lcdAutoDim = modeSwitch.read() / 4 + 1; // set value according to encoder position
-      // loop around if out of range
+      // don't go past limits
       if(lcdAutoDim > 1) // max value is 1
       {
         lcdAutoDim = 1;
@@ -481,9 +487,10 @@ void loop()
   {
     lcd.clear();
     buttonPressed = false;
-    // set number of cylinders
-    modeSwitch.write(((engineCylinders / 2) - 1) * 4); // set number of cylinders
-    while(buttonPressed == false)
+    // set number of cylinders in increments of 2
+    modeSwitch.write(((engineCylinders / 2) - 1) * 4);
+    // loop until button pressed
+    while(!buttonPressed)
     {
       engineCylinders = 2 * (modeSwitch.read() / 4 + 1);
       if(engineCylinders < 2)
@@ -522,7 +529,27 @@ void loop()
     EEPROM.write(useCelciusAddress, useCelcius);
     buttonPressed = false;
     lcd.clear();
-    modeSwitch.write((mode-1)*4); // write current mode back to Encoder
+    // change update Frequency (refreshInterval) in increments of 50 ms
+    modeSwitch.write(((refreshInterval / 50) - 1) * 4); // set number of cylinders
+    while(!buttonPressed)
+    {
+      refreshInterval = 50 * (modeSwitch.read() / 4 + 1);
+      if(refreshInterval < 100)
+      {
+        refreshInterval = 100;
+        modeSwitch.write(((refreshInterval / 50) - 1) * 4);
+      }
+      else if (refreshInterval > 1500)
+      {
+        refreshInterval = 1500;
+        modeSwitch.write(((refreshInterval / 50) - 1) * 4);
+      }
+      displayInfo(modeRefreshInterval);
+    }
+    EEPROM.write(refreshIntervalAddress, refreshInterval / 10); // divide by 10 so value will fit into a byte
+    buttonPressed = false;
+    lcd.clear();
+    modeSwitch.write((mode - 1) * 4); // write current mode back to Encoder
   }
   // set clock if button pressed while displaying clock
   else if (mode == modeClock && buttonPressed)
@@ -657,7 +684,7 @@ void loop()
     RTC.set(now()); // update DS1307 RTC with new Time
     buttonPressed = false;
     lcd.clear();
-    modeSwitch.write((mode - 1) * 4); // write current mode back to encoder
+    modeSwitch.write((mode - 1) * 4); // write current mode back to Encoder
   }
   
   // switch temp and pressure units
@@ -881,11 +908,11 @@ float getCoolantTemp()
   }
   val += 5; // allows proper rounding due to using integer math
   val /= 10; // get average value
+  val = max(val, 1); // dont let val be 0, which would give infinite temp
   float Vout = val / 1023.0 * 5.0; // convert 10-bit value to Voltage
   float VI = Vout * (R1 + R2) / R2; // solve for input Voltage
   float Rsender = VI * coolantGaugeOhms / (regVoltage - VI); // solve for sensor resistance
   float temp = pow(SHparamA + SHparamB * log(Rsender) + SHparamC * pow(log(Rsender),3),-1) - 273.15; // solve for temperature based on calibration curve based on Steinhart–Hart equation
-  Serial.println(temp);
   return temp; // return temp in deg C
 }
 
@@ -919,10 +946,10 @@ void countRPM()
 void pressButton()
 {
   // ignores multiple button presses in quick succession (interval defined above: switchDebounceInterval)
-  if(millis()-timeSwitchLastPressed>switchDebounceInterval)
+  if(millis() - timeSwitchLastPressed > switchDebounceInterval)
   {
     buttonPressed = true;
-    timeSwitchLastPressed=millis();
+    timeSwitchLastPressed = millis();
   }
 }
 
@@ -933,7 +960,7 @@ void displayInfo(int displayMode)
   {
     case modeBattVoltage: // battery voltage
     {
-      lcd.setCursor(0,0);
+      lcd.setCursor(0, 0);
       lcd.print("Battery Voltage");
       float battVoltage = getBattVoltage();
       lcd.setCursor(5, 1);
@@ -1479,6 +1506,19 @@ void displayInfo(int displayMode)
       lcd.print(currentAFRatio, 1);
       break;
     }
+    case modeRefreshInterval:
+    {
+      lcd.setCursor(0, 0);
+      lcd.print("Update Interval");
+      lcd.setCursor(4, 1);
+      if(refreshInterval < 1000)
+      {
+        lcd.print(" ");
+      }
+      lcd.print(refreshInterval);
+      lcd.print(" ms");
+      break;
+    }
   }
 }
 
@@ -1563,7 +1603,7 @@ void displayInfoLarge(int displayMode)
       boolean significantZero = false;
       for (int i = 0; i < 2; i++)
       {
-        if( battString[i]==0 && significantZero==false && i<1)
+        if( battString[i]==0 && !significantZero && i<1)
         {
           clearLargeNumber(i*3);
         }
@@ -1601,7 +1641,7 @@ void displayInfoLarge(int displayMode)
       boolean significantZero = false;
       for (int i = 0; i < 3; i++)
       {
-        if( oilString[i] == 0 && significantZero == false && i < 2)
+        if( oilString[i] == 0 && !significantZero && i < 2)
         {
           clearLargeNumber(i*3);
         }
@@ -1644,7 +1684,7 @@ void displayInfoLarge(int displayMode)
       boolean significantZero = false;
       for (int i = 0; i < 2; i++)
       {
-        if( hourString[i]==0 && significantZero==false && i<1)
+        if( hourString[i]==0 && !significantZero && i<1)
         {
           clearLargeNumber(i*3);
         }
@@ -1697,7 +1737,7 @@ void displayInfoLarge(int displayMode)
       boolean significantZero = false;
       for (int i = 0; i < 3; i++)
       {
-        if( tempString[i]==0 && significantZero==false && i<2)
+        if( tempString[i]==0 && !significantZero && i<2)
         {
           clearLargeNumber(i*3);
         }
@@ -1750,7 +1790,7 @@ void displayInfoLarge(int displayMode)
       boolean significantZero = false;
       for (int i = 0; i < 3; i++)
       {
-        if( tempString[i]==0 && significantZero==false && i<2)
+        if( tempString[i]==0 && !significantZero && i<2)
         {
           clearLargeNumber(i*3);
         }
@@ -1803,7 +1843,7 @@ void displayInfoLarge(int displayMode)
       boolean significantZero = false;
       for (int i = 0; i < 3; i++)
       {
-        if( tempString[i]==0 && significantZero==false && i<2)
+        if( tempString[i]==0 && !significantZero && i<2)
         {
           clearLargeNumber(i*3);
         }
@@ -1855,7 +1895,7 @@ void displayInfoLarge(int displayMode)
       boolean significantZero = false;
       for (int i = 0; i < 3; i++)
       {
-        if( tempString[i]==0 && significantZero==false && i<2)
+        if( tempString[i]==0 && !significantZero && i<2)
         {
           clearLargeNumber(i*3);
         }
@@ -1908,7 +1948,7 @@ void displayInfoLarge(int displayMode)
       boolean significantZero = false;
       for (int i = 0; i < 3; i++)
       {
-        if( tempString[i]==0 && significantZero==false && i<2)
+        if( tempString[i]==0 && !significantZero && i<2)
         {
           clearLargeNumber(i*3);
         }
@@ -1961,7 +2001,7 @@ void displayInfoLarge(int displayMode)
       boolean significantZero = false;
       for (int i = 0; i < 3; i++)
       {
-        if(tempString[i] == 0 && significantZero == false && i < 2)
+        if(tempString[i] == 0 && !significantZero && i < 2)
         {
           clearLargeNumber(i*3);
         }
@@ -2005,7 +2045,7 @@ void displayInfoLarge(int displayMode)
       boolean significantZero = false;
       for (int i = 0 ; i < 2 ; i++)
       {
-        if( AFRString[i] == 0 && significantZero == false && i < 1)
+        if( AFRString[i] == 0 && !significantZero && i < 1)
         {
           clearLargeNumber(i * 3);
         }
