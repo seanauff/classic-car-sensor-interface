@@ -48,7 +48,7 @@ const int lcdContrastPin = 9; // contrast adjust on digital pin 9 (PWM)
 const int encoderPin1 = 18; // A leg of encoder on digital pin 18 (interrupt 5)
 const int encoderPin2 = 19; // B leg of encoder on digital pin 19 (interrupt 4)
 const int wireSDAPin = 20; // I2C SDA
-const int wireSCLPin = 21; // I2c SCL
+const int wireSCLPin = 21; // I2C SCL
 const int factoryResetPin = 22; // held HIGH by internal pullup, short to GND during bootup to reset to factory defualts 
 const int oneWirePin = 24; // data pin for 1-Wire devices (DS18B20)
 const int lcdD7Pin = 38; // LCD D7 pin
@@ -257,7 +257,8 @@ volatile boolean buttonPressed = false;
 void setup()
 {
   pinMode(factoryResetPin, INPUT_PULLUP); // enable internal pullup on factory reset pin
-  // if factory reset pin has been pulled LOW, clear EEPROM
+  delayMicroseconds(10); // wait for pin to be pulled high
+  // if factory reset pin has been pulled LOW, clear EEPROM and set Time and RTC to default
   if(digitalRead(factoryResetPin) == LOW)
   {
     EEPROM.write(lcdContrastAddress, 255);
@@ -268,6 +269,8 @@ void setup()
     EEPROM.write(lcdBigFontAddress, 255);
     EEPROM.write(engineCylindersAddress, 255);
     EEPROM.write(refreshIntervalAddress, 255);
+    setTime(currentHour, currentMinute, currentSecond, currentDay, currentMonth, currentYear);
+    RTC.set(now());
   }
   // load values from EEPROM if they have been changed from default, otherwise, defaults will be used
   if (EEPROM.read(lcdContrastAddress) < 255)
@@ -405,6 +408,10 @@ void loop()
         lcdAutoDim = 0;
         modeSwitch.write((lcdAutoDim - 1) * 4);
       }
+	  if (lcdAutoDim == 0)
+	  {
+	    lcdBrightness = previousBrightness; // restore brightness to previous value
+	  }
       setAutoBrightness();
       writeLCDValues();
       displayInfo(modeLCDAutoDim); 
@@ -530,7 +537,7 @@ void loop()
     buttonPressed = false;
     lcd.clear();
     // change update Frequency (refreshInterval) in increments of 50 ms
-    modeSwitch.write(((refreshInterval / 50) - 1) * 4); // set number of cylinders
+    modeSwitch.write(((refreshInterval / 50) - 1) * 4);
     while(!buttonPressed)
     {
       refreshInterval = 50 * (modeSwitch.read() / 4 + 1);
@@ -865,7 +872,7 @@ float getOilPress()
   float Vout = val / 1023.0 * 5.0; // convert 10-bit value to Voltage
   float VI = Vout * (R1 + R2) / R2; // solve for input Voltage
   float Rsender = VI * oilGaugeOhms / (regVoltage - VI); // solve for sensor resistance
-  float pressure = 108.4 - 0.56 * Rsender; // solve for pressure based on calibration curve
+  float pressure = 140.75 - 1.0199 * Rsender + 0.0018 * Rsender * Rsender; // solve for pressure based on calibration curve
   pressure = max(pressure, 0); // constrain lower bound to 0
   return pressure; // return pressure in psi
 }
