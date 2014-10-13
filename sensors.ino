@@ -22,6 +22,7 @@
 */
 
 // included library            // source
+#include <BigNumbers.h>        // https://github.com/seanauff/BigNumbers
 #include <DallasTemperature.h> // http://www.hacktronics.com/Tutorials/arduino-1-wire-tutorial.html 
 #include <DS1307RTC.h>         // http://www.pjrc.com/teensy/td_libs_DS1307RTC.html 
 #include <EEPROM.h>            // http://arduino.cc/en/Reference/EEPROM 
@@ -137,96 +138,7 @@ int lcdHue = 72; // scale from 1-120, use setRGBFromHue() to set lcdLEDRed, lcdL
 int lcdLEDRed; // scale from 0-255
 int lcdLEDGreen; // scale from 0-255
 int lcdLEDBlue; // scale from 0-255
-
-// custom characters for large font numbers
-byte leftSide[8] = 
-{
-  B00111,
-  B01111,
-  B01111,
-  B01111,
-  B01111,
-  B01111,
-  B01111,
-  B00111
-};
-byte upperBar[8] =
-{
-  B11111,
-  B11111,
-  B11111,
-  B00000,
-  B00000,
-  B00000,
-  B00000,
-  B00000
-};
-byte rightSide[8] =
-{
-  B11100,
-  B11110,
-  B11110,
-  B11110,
-  B11110,
-  B11110,
-  B11110,
-  B11100
-};
-byte leftEnd[8] =
-{
-  B01111,
-  B00111,
-  B00000,
-  B00000,
-  B00000,
-  B00000,
-  B00011,
-  B00111
-};
-byte lowerBar[8] =
-{
-  B00000,
-  B00000,
-  B00000,
-  B00000,
-  B00000,
-  B11111,
-  B11111,
-  B11111
-};
-byte rightEnd[8] =
-{
-  B11110,
-  B11100,
-  B00000,
-  B00000,
-  B00000,
-  B00000,
-  B11000,
-  B11100
-};
-byte middleBar[8] =
-{
-  B11111,
-  B11111,
-  B11111,
-  B00000,
-  B00000,
-  B00000,
-  B11111,
-  B11111
-};
-byte lowerEnd[8] = 
-{
-  B00000,
-  B00000,
-  B00000,
-  B00000,
-  B00000,
-  B00000,
-  B00111,
-  B01111
-};
+BigNumbers bigNum(&lcd); // create BigNumbers object for displaying large numbers
 
 // clock setup
 // default values to use if RTC not set
@@ -323,17 +235,7 @@ void setup()
   pinMode(lcdLEDBluePin, OUTPUT); // set lcdLEDBluePin as OUTPUT
   
   lcd.begin(16, 2); // setup lcd with 16 columns, 2 rows
-  
-  // setup custom characters for Big Font use
-  lcd.createChar(0,leftSide);
-  lcd.createChar(1,upperBar);
-  lcd.createChar(2,rightSide);
-  lcd.createChar(3,leftEnd);
-  lcd.createChar(4,lowerBar);
-  lcd.createChar(5,rightEnd);
-  lcd.createChar(6,middleBar);
-  lcd.createChar(7,lowerEnd);
-  
+   
   TCCR2B = TCCR2B & 0b11111000 | 0x01; // sets Timer 2 PWM frequency to 31372.55 Hz (affects digital pins 9 and 10)
   
   // update LCD display values
@@ -1555,11 +1457,11 @@ void displayInfoLarge(int displayMode)
       {
         if(RPMString[i] == 0 && !significantZero && i < 3)
         {
-          clearLargeNumber(i * 3);
+          bigNum.clearLargeNumber(i * 3);
         }
         else
         {
-          displayLargeNumber(RPMString[i], i * 3);
+          bigNum.displayLargeNumber(RPMString[i], i * 3);
           significantZero = true;
         }
       }
@@ -1580,13 +1482,13 @@ void displayInfoLarge(int displayMode)
       boolean significantZero = false;
       for (int i = 0; i < 3; i++)
       {
-        if( fuelString[i] == 0 && !significantZero && i < 2)
+        if(fuelString[i] == 0 && !significantZero && i < 2)
         {
-          clearLargeNumber(i * 3);
+          bigNum.clearLargeNumber(i * 3);
         }
         else
         {
-          displayLargeNumber(fuelString[i], i * 3);
+          bigNum.displayLargeNumber(fuelString[i], i * 3);
           significantZero = true;
         }
       }
@@ -1599,7 +1501,7 @@ void displayInfoLarge(int displayMode)
     case modeBattVoltage: // battery voltage
     {
       float battVoltage = getBattVoltage();
-      battVoltage *=10;
+      battVoltage *= 10;
       int battVoltageInt = int(battVoltage + 0.5);
       byte battString[3];
       battString[2] = battVoltageInt%10;
@@ -1610,19 +1512,19 @@ void displayInfoLarge(int displayMode)
       boolean significantZero = false;
       for (int i = 0; i < 2; i++)
       {
-        if( battString[i]==0 && !significantZero && i<1)
+        if(battString[i] == 0 && !significantZero && i<1)
         {
-          clearLargeNumber(i*3);
+          bigNum.clearLargeNumber(i * 3);
         }
         else
         {
-          displayLargeNumber(battString[i],i*3);
+          bigNum.displayLargeNumber(battString[i], i * 3);
           significantZero = true;
         }
       }
-      lcd.setCursor(9,0);
+      lcd.setCursor(9, 0);
       lcd.print("Battery");
-      lcd.setCursor(6,1);
+      lcd.setCursor(6, 1);
       lcd.print(".");
       lcd.print(battString[2]);
       lcd.print(" Volts");
@@ -1633,34 +1535,34 @@ void displayInfoLarge(int displayMode)
       float oilPressure = getOilPress();
       if (useCelcius == 1)
       {
-        oilPressure = oilPressure*0.06895;
+        oilPressure = oilPressure * 0.06895; // convert to bar
       }
       oilPressure *= 10;
       int oilPressureInt = int(oilPressure + 0.5);
       byte oilString[4];
-      oilString[3] = oilPressureInt%10;
+      oilString[3] = oilPressureInt % 10;
       oilPressureInt /= 10;
-      oilString[2] = oilPressureInt%10;
+      oilString[2] = oilPressureInt % 10;
       oilPressureInt /= 10;
-      oilString[1] = oilPressureInt%10;
+      oilString[1] = oilPressureInt % 10;
       oilPressureInt /= 10;
-      oilString[0] = oilPressureInt%10;
+      oilString[0] = oilPressureInt % 10;
       boolean significantZero = false;
       for (int i = 0; i < 3; i++)
       {
-        if( oilString[i] == 0 && !significantZero && i < 2)
+        if(oilString[i] == 0 && !significantZero && i < 2)
         {
-          clearLargeNumber(i*3);
+          bigNum.clearLargeNumber(i * 3);
         }
         else
         {
-          displayLargeNumber(oilString[i],i*3);
+          bigNum.displayLargeNumber(oilString[i], i * 3);
           significantZero = true;
         }
       }
-      lcd.setCursor(12,0);
+      lcd.setCursor(12, 0);
       lcd.print("Oil");
-      lcd.setCursor(9,1);
+      lcd.setCursor(9, 1);
       lcd.print(".");
       lcd.print(oilString[3]);
       if (useCelcius == 1)
@@ -1679,38 +1581,38 @@ void displayInfoLarge(int displayMode)
       currentHour = hourFormat12(currentTime);
       byte currentHourTemp = currentHour;
       byte hourString[2];
-      hourString[1] = currentHourTemp%10;
+      hourString[1] = currentHourTemp % 10;
       currentHourTemp /= 10;
-      hourString[0] = currentHourTemp%10;
+      hourString[0] = currentHourTemp % 10;
       currentMinute = minute(currentTime);
       byte currentMinuteTemp = currentMinute;
       byte minuteString[2];
-      minuteString[1] = currentMinuteTemp%10;
+      minuteString[1] = currentMinuteTemp % 10;
       currentMinuteTemp /= 10;
-      minuteString[0] = currentMinuteTemp%10;
+      minuteString[0] = currentMinuteTemp % 10;
       boolean significantZero = false;
       for (int i = 0; i < 2; i++)
       {
-        if( hourString[i]==0 && !significantZero && i<1)
+        if(hourString[i] == 0 && !significantZero && i < 1)
         {
-          clearLargeNumber(i*3);
+          bigNum.clearLargeNumber(i * 3);
         }
         else
         {
-          displayLargeNumber(hourString[i],i*3);
+          bigNum.displayLargeNumber(hourString[i], i * 3);
           significantZero = true;
         }
       }
-      lcd.setCursor(6,0);
+      lcd.setCursor(6, 0);
       lcd.write(char(165));
-      lcd.setCursor(6,1);
+      lcd.setCursor(6, 1);
       lcd.write(char(165));
       for (int i = 0; i < 2; i++)
       {
-        displayLargeNumber(minuteString[i],(i*3)+7);
+        bigNum.displayLargeNumber(minuteString[i], (i * 3) + 7);
         significantZero = true;
       }
-      lcd.setCursor(14,1);
+      lcd.setCursor(14, 1);
       if(isAM())
       {
         lcd.print("AM");
@@ -1724,39 +1626,39 @@ void displayInfoLarge(int displayMode)
     case modeIntakeTemp:
     {
       float currentTemp = sensors.getTempC(intakeTempDigital);
-      if (useCelcius==0)
+      if (useCelcius == 0)
       {
-        currentTemp=currentTemp*9.0/5.0+32.0;
+        currentTemp = currentTemp * 9.0 / 5.0 + 32.0; // convert to deg F
       }
       boolean isNegative = false;
-      if(currentTemp<0)
+      if(currentTemp < 0)
       {
         isNegative = true;
         currentTemp = abs(currentTemp);
       }
       int currentTempInt = int(currentTemp + 0.5);
       byte tempString[3];
-      tempString[2] = currentTempInt%10;
+      tempString[2] = currentTempInt % 10;
       currentTempInt /= 10;
-      tempString[1] = currentTempInt%10;
+      tempString[1] = currentTempInt % 10;
       currentTempInt /= 10;
-      tempString[0] = currentTempInt%10;
+      tempString[0] = currentTempInt % 10;
       boolean significantZero = false;
       for (int i = 0; i < 3; i++)
       {
-        if( tempString[i]==0 && !significantZero && i<2)
+        if( tempString[i] == 0 && !significantZero && i < 2)
         {
-          clearLargeNumber(i*3);
+          bigNum.clearLargeNumber(i * 3);
         }
         else
         {
-          displayLargeNumber(tempString[i],i*3);
+          bigNum.displayLargeNumber(tempString[i], i * 3);
           significantZero = true;
         }
       }
-      lcd.setCursor(10,0);
+      lcd.setCursor(10, 0);
       lcd.print("Intake");
-      lcd.setCursor(10,1);
+      lcd.setCursor(10, 1);
       lcd.write(char(223));
       if (useCelcius == 0)
       {
@@ -1768,7 +1670,7 @@ void displayInfoLarge(int displayMode)
       }
       if (isNegative)
       {
-        lcd.setCursor(0,0);
+        lcd.setCursor(0, 0);
         lcd.print("-");
       }
       sensors.requestTemperatures();
@@ -1777,39 +1679,39 @@ void displayInfoLarge(int displayMode)
     case modeOilTemp:
     {
       float currentTemp = sensors.getTempC(oilTempDigital);
-      if (useCelcius==0)
+      if (useCelcius == 0)
       {
-        currentTemp=currentTemp*9.0/5.0+32.0;
+        currentTemp = currentTemp * 9.0 / 5.0 + 32.0; // convert to deg F
       }
       boolean isNegative = false;
-      if(currentTemp<0)
+      if(currentTemp < 0)
       {
         isNegative = true;
         currentTemp = abs(currentTemp);
       }
       int currentTempInt = int(currentTemp + 0.5);
       byte tempString[3];
-      tempString[2] = currentTempInt%10;
+      tempString[2] = currentTempInt % 10;
       currentTempInt /= 10;
-      tempString[1] = currentTempInt%10;
+      tempString[1] = currentTempInt % 10;
       currentTempInt /= 10;
-      tempString[0] = currentTempInt%10;
+      tempString[0] = currentTempInt % 10;
       boolean significantZero = false;
       for (int i = 0; i < 3; i++)
       {
-        if( tempString[i]==0 && !significantZero && i<2)
+        if(tempString[i] == 0 && !significantZero && i < 2)
         {
-          clearLargeNumber(i*3);
+          bigNum.clearLargeNumber(i * 3);
         }
         else
         {
-          displayLargeNumber(tempString[i],i*3);
+          bigNum.displayLargeNumber(tempString[i], i * 3);
           significantZero = true;
         }
       }
-      lcd.setCursor(10,0);
+      lcd.setCursor(10, 0);
       lcd.print("Oil");
-      lcd.setCursor(10,1);
+      lcd.setCursor(10, 1);
       lcd.write(char(223));
       if (useCelcius == 0)
       {
@@ -1821,7 +1723,7 @@ void displayInfoLarge(int displayMode)
       }
       if (isNegative)
       {
-        lcd.setCursor(0,0);
+        lcd.setCursor(0, 0);
         lcd.print("-");
       }
       sensors.requestTemperatures();
@@ -1830,39 +1732,39 @@ void displayInfoLarge(int displayMode)
     case modeCoolantTemp:
     {
       float currentTemp = getCoolantTemp();
-      if (useCelcius==0)
+      if (useCelcius == 0)
       {
-        currentTemp=currentTemp*9.0/5.0+32.0;
+        currentTemp = currentTemp * 9.0 / 5.0 + 32.0; // convert to deg F
       }
       boolean isNegative = false;
-      if(currentTemp<0)
+      if(currentTemp < 0)
       {
         isNegative = true;
         currentTemp = abs(currentTemp);
       }
       int currentTempInt = int(currentTemp + 0.5);
       byte tempString[3];
-      tempString[2] = currentTempInt%10;
+      tempString[2] = currentTempInt % 10;
       currentTempInt /= 10;
-      tempString[1] = currentTempInt%10;
+      tempString[1] = currentTempInt % 10;
       currentTempInt /= 10;
-      tempString[0] = currentTempInt%10;
+      tempString[0] = currentTempInt % 10;
       boolean significantZero = false;
       for (int i = 0; i < 3; i++)
       {
-        if( tempString[i]==0 && !significantZero && i<2)
+        if(tempString[i] == 0 && !significantZero && i < 2)
         {
-          clearLargeNumber(i*3);
+          bigNum.clearLargeNumber(i * 3);
         }
         else
         {
-          displayLargeNumber(tempString[i],i*3);
+          bigNum.displayLargeNumber(tempString[i], i * 3);
           significantZero = true;
         }
       }
-      lcd.setCursor(10,0);
+      lcd.setCursor(10, 0);
       lcd.print("Engine");
-      lcd.setCursor(10,1);
+      lcd.setCursor(10, 1);
       lcd.write(char(223));
       if (useCelcius == 0)
       {
@@ -1874,7 +1776,7 @@ void displayInfoLarge(int displayMode)
       }
       if (isNegative)
       {
-        lcd.setCursor(0,0);
+        lcd.setCursor(0, 0);
         lcd.print("-");
       }
       break;
@@ -1882,39 +1784,39 @@ void displayInfoLarge(int displayMode)
     case modeInsideTemp:
     {
       float currentTemp = sensors.getTempC(insideTempDigital);
-      if (useCelcius==0)
+      if (useCelcius == 0)
       {
-        currentTemp=currentTemp*9.0/5.0+32.0;
+        currentTemp = currentTemp * 9.0 / 5.0 + 32.0;
       }
       boolean isNegative = false;
-      if(currentTemp<0)
+      if(currentTemp < 0)
       {
         isNegative = true;
         currentTemp = abs(currentTemp);
       }
       int currentTempInt = int(currentTemp + 0.5);
       byte tempString[3];
-      tempString[2] = currentTempInt%10;
+      tempString[2] = currentTempInt % 10;
       currentTempInt /= 10;
-      tempString[1] = currentTempInt%10;
+      tempString[1] = currentTempInt % 10;
       currentTempInt /= 10;
-      tempString[0] = currentTempInt%10;
+      tempString[0] = currentTempInt % 10;
       boolean significantZero = false;
       for (int i = 0; i < 3; i++)
       {
-        if( tempString[i]==0 && !significantZero && i<2)
+        if(tempString[i] == 0 && !significantZero && i < 2)
         {
-          clearLargeNumber(i*3);
+          bigNum.clearLargeNumber(i * 3);
         }
         else
         {
-          displayLargeNumber(tempString[i],i*3);
+          bigNum.displayLargeNumber(tempString[i], i * 3);
           significantZero = true;
         }
       }
-      lcd.setCursor(10,0);
+      lcd.setCursor(10, 0);
       lcd.print("Cabin");
-      lcd.setCursor(10,1);
+      lcd.setCursor(10, 1);
       lcd.write(char(223));
       if (useCelcius == 0)
       {
@@ -1926,7 +1828,7 @@ void displayInfoLarge(int displayMode)
       }
       if (isNegative)
       {
-        lcd.setCursor(0,0);
+        lcd.setCursor(0, 0);
         lcd.print("-");
       }
       sensors.requestTemperatures();
@@ -1935,39 +1837,39 @@ void displayInfoLarge(int displayMode)
     case modeOutsideTemp:
     {
       float currentTemp = sensors.getTempC(outsideTempDigital);
-      if (useCelcius==0)
+      if (useCelcius == 0)
       {
-        currentTemp=currentTemp*9.0/5.0+32.0;
+        currentTemp = currentTemp * 9.0 / 5.0 + 32.0; // comvert to deg F
       }
       boolean isNegative = false;
-      if(currentTemp<0)
+      if(currentTemp < 0)
       {
         isNegative = true;
         currentTemp = abs(currentTemp);
       }
       int currentTempInt = int(currentTemp + 0.5);
       byte tempString[3];
-      tempString[2] = currentTempInt%10;
+      tempString[2] = currentTempInt % 10;
       currentTempInt /= 10;
-      tempString[1] = currentTempInt%10;
+      tempString[1] = currentTempInt % 10;
       currentTempInt /= 10;
-      tempString[0] = currentTempInt%10;
+      tempString[0] = currentTempInt % 10;
       boolean significantZero = false;
       for (int i = 0; i < 3; i++)
       {
-        if( tempString[i]==0 && !significantZero && i<2)
+        if(tempString[i] == 0 && !significantZero && i < 2)
         {
-          clearLargeNumber(i*3);
+          bigNum.clearLargeNumber(i * 3);
         }
         else
         {
-          displayLargeNumber(tempString[i],i*3);
+          bigNum.displayLargeNumber(tempString[i], i * 3);
           significantZero = true;
         }
       }
-      lcd.setCursor(10,0);
+      lcd.setCursor(10, 0);
       lcd.print("Out");
-      lcd.setCursor(10,1);
+      lcd.setCursor(10, 1);
       lcd.write(char(223));
       if (useCelcius == 0)
       {
@@ -1979,7 +1881,7 @@ void displayInfoLarge(int displayMode)
       }
       if (isNegative)
       {
-        lcd.setCursor(0,0);
+        lcd.setCursor(0, 0);
         lcd.print("-");
       }
       sensors.requestTemperatures();
@@ -2000,27 +1902,27 @@ void displayInfoLarge(int displayMode)
       }
       int currentTempInt = int(currentTemp + 0.5);
       byte tempString[3];
-      tempString[2] = currentTempInt%10;
+      tempString[2] = currentTempInt % 10;
       currentTempInt /= 10;
-      tempString[1] = currentTempInt%10;
+      tempString[1] = currentTempInt % 10;
       currentTempInt /= 10;
-      tempString[0] = currentTempInt%10;
+      tempString[0] = currentTempInt % 10;
       boolean significantZero = false;
       for (int i = 0; i < 3; i++)
       {
         if(tempString[i] == 0 && !significantZero && i < 2)
         {
-          clearLargeNumber(i*3);
+          bigNum.clearLargeNumber(i*3);
         }
         else
         {
-          displayLargeNumber(tempString[i], i * 3);
+          bigNum.displayLargeNumber(tempString[i], i * 3);
           significantZero = true;
         }
       }
-      lcd.setCursor(10,0);
+      lcd.setCursor(10, 0);
       lcd.print("Trans.");
-      lcd.setCursor(10,1);
+      lcd.setCursor(10, 1);
       lcd.write(char(223));
       if (useCelcius == 0)
       {
@@ -2032,7 +1934,7 @@ void displayInfoLarge(int displayMode)
       }
       if (isNegative)
       {
-        lcd.setCursor(0,0);
+        lcd.setCursor(0, 0);
         lcd.print("-");
       }
       sensors.requestTemperatures();
@@ -2044,21 +1946,21 @@ void displayInfoLarge(int displayMode)
       currentAFRatio *= 10;
       int currentAFRatioInt = int(currentAFRatio + 0.5);
       byte AFRString[3];
-      AFRString[2] = currentAFRatioInt%10;
+      AFRString[2] = currentAFRatioInt % 10;
       currentAFRatioInt /= 10;
-      AFRString[1] = currentAFRatioInt%10;
+      AFRString[1] = currentAFRatioInt % 10;
       currentAFRatioInt /= 10;
-      AFRString[0] = currentAFRatioInt%10;
+      AFRString[0] = currentAFRatioInt % 10;
       boolean significantZero = false;
       for (int i = 0 ; i < 2 ; i++)
       {
         if( AFRString[i] == 0 && !significantZero && i < 1)
         {
-          clearLargeNumber(i * 3);
+          bigNum.clearLargeNumber(i * 3);
         }
         else
         {
-          displayLargeNumber(AFRString[i], i * 3);
+          bigNum.displayLargeNumber(AFRString[i], i * 3);
           significantZero = true;
         }
       }
@@ -2070,156 +1972,21 @@ void displayInfoLarge(int displayMode)
       lcd.print(" Ratio");
       break;
     }
-    case modeLCDSetup:
+    case modeLCDSetup: // Display Settings
     {
-      lcd.setCursor(4,0);
+      lcd.setCursor(4, 0);
       lcd.print("Display");
-      lcd.setCursor(4,1);
+      lcd.setCursor(4, 1);
       lcd.print("Settings");
       break;
     }
     case modeSystemSetup: // System Settings
     {
-      lcd.setCursor(5,0);
+      lcd.setCursor(5, 0);
       lcd.print("System");
-      lcd.setCursor(4,1);
+      lcd.setCursor(4, 1);
       lcd.print("Settings");
       break;
     }
   }
-}
-
-void displayLargeNumber(byte n, byte x) // n is number to display, x is column of upper left corner for large character
-{
-  switch (n)
-  {
-    case 0:
-    {
-      lcd.setCursor(x,0);
-      lcd.write(byte(0));
-      lcd.write(1);
-      lcd.write(2);
-      lcd.setCursor(x, 1);
-      lcd.write(byte(0));
-      lcd.write(4);
-      lcd.write(2);
-      break;
-    }
-    case 1:
-    {
-      lcd.setCursor(x,0);
-      lcd.write(char(254));
-      lcd.write(char(254));
-      lcd.write(2);
-      lcd.setCursor(x,1);
-      lcd.write(char(254));
-      lcd.write(char(254));
-      lcd.write(2);
-      break;
-    }
-    case 2:
-    {
-      lcd.setCursor(x,0);
-      lcd.write(3);
-      lcd.write(6);
-      lcd.write(2);
-      lcd.setCursor(x, 1);
-      lcd.write(byte(0));
-      lcd.write(4);
-      lcd.write(4);
-      break;
-    }
-    case 3:
-    {
-      lcd.setCursor(x,0);
-      lcd.write(3);
-      lcd.write(6);
-      lcd.write(2);
-      lcd.setCursor(x, 1);
-      lcd.write(7);
-      lcd.write(4);
-      lcd.write(2);
-      break;
-    }
-    case 4:
-    {
-      lcd.setCursor(x,0);
-      lcd.write(byte(0));
-      lcd.write(4);
-      lcd.write(2);
-      lcd.setCursor(x, 1);
-      lcd.write(char(254));
-      lcd.write(char(254));
-      lcd.write(2);
-      break;
-    }
-    case 5:
-    {
-      lcd.setCursor(x,0);
-      lcd.write(byte(0));
-      lcd.write(6);
-      lcd.write(5);
-      lcd.setCursor(x, 1);
-      lcd.write(7);
-      lcd.write(4);
-      lcd.write(2);
-      break;
-    }
-    case 6:
-    {
-      lcd.setCursor(x,0);
-      lcd.write(byte(0));
-      lcd.write(6);
-      lcd.write(5);
-      lcd.setCursor(x, 1);
-      lcd.write(byte(0));
-      lcd.write(4);
-      lcd.write(2);
-      break;
-    }
-    case 7:
-    {
-      lcd.setCursor(x,0);
-      lcd.write(1);
-      lcd.write(1);
-      lcd.write(2);
-      lcd.setCursor(x, 1);
-      lcd.write(char(254));
-      lcd.write(char(254));
-      lcd.write(2);
-      break;
-    }
-    case 8:
-    {
-      lcd.setCursor(x,0);
-      lcd.write(byte(0));
-      lcd.write(6);
-      lcd.write(2);
-      lcd.setCursor(x, 1);
-      lcd.write(byte(0));
-      lcd.write(4);
-      lcd.write(2);
-      break;
-    }
-    case 9:
-    {
-      lcd.setCursor(x,0);
-      lcd.write(byte(0));
-      lcd.write(6);
-      lcd.write(2);
-      lcd.setCursor(x, 1);
-      lcd.write(7);
-      lcd.write(4);
-      lcd.write(2);
-      break;
-    }
-  }
-}
-
-void clearLargeNumber(byte x) // x is column of upper left corner for large character
-{
-  lcd.setCursor(x,0);
-  lcd.print("   ");
-  lcd.setCursor(x,1); 
-  lcd.print("   ");
 }
