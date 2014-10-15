@@ -870,6 +870,12 @@ float getIntakePress()
   return pressure;
 }
 
+// gets data needed to calculate mass (air) flow rate: intake temp, intake pressure, RPM, engine displacement
+float getMAFR()
+{
+  
+}
+
 // Interrupt Service Routine
 // counts tach pulses
 void countRPM()
@@ -946,14 +952,18 @@ void displayInfo(int displayMode)
       {
         currentTemp = currentTemp * 9.0 / 5.0 + 32.0; // convert to deg F
       }
-      lcd.setCursor(5, 1);
-      if ((currentTemp <= -10 && currentTemp > -100) || (currentTemp >= 10 && currentTemp < 100))
+      lcd.setCursor(4, 1);
+      if (currentTemp < 10 && currentTemp >= 0)
       {
-        lcd.print(" ");
+        lcd.print("   ");
       }
-      else if (currentTemp < 10 && currentTemp > -10)
+      else if ((currentTemp < 100 && currentTemp >= 10) || (currentTemp < 0 && currentTemp > -10))
       {
         lcd.print("  ");
+      }
+      else if (currentTemp >= 100 || (currentTemp <= -10 && currentTemp > -100))
+      {
+        lcd.print(" ");
       }
       lcd.print(currentTemp, 0);
       lcd.print(" ");
@@ -977,14 +987,18 @@ void displayInfo(int displayMode)
       {
         currentTemp = currentTemp * 9.0 / 5.0 + 32.0; // convert to deg F
       }
-      lcd.setCursor(5, 1);
-      if ((currentTemp <= -10 && currentTemp > -100) || (currentTemp >= 10 && currentTemp < 100))
+      lcd.setCursor(4, 1);
+      if (currentTemp < 10 && currentTemp >= 0)
       {
-        lcd.print(" ");
+        lcd.print("   ");
       }
-      else if (currentTemp < 10 && currentTemp > -10)
+      else if ((currentTemp < 100 && currentTemp >= 10) || (currentTemp < 0 && currentTemp > -10))
       {
         lcd.print("  ");
+      }
+      else if (currentTemp >= 100 || (currentTemp <= -10 && currentTemp > -100))
+      {
+        lcd.print(" ");
       }
       lcd.print(currentTemp, 0);
       lcd.print(" ");
@@ -1009,14 +1023,18 @@ void displayInfo(int displayMode)
       {
         currentTemp = currentTemp * 9.0 / 5.0 + 32.0; // convert to deg F
       }
-      lcd.setCursor(5, 1);
-      if ((currentTemp <= -10 && currentTemp > -100) || (currentTemp >= 10 && currentTemp < 100))
+      lcd.setCursor(4, 1);
+      if (currentTemp < 10 && currentTemp >= 0)
       {
-        lcd.print(" ");
+        lcd.print("   ");
       }
-      else if (currentTemp < 10 && currentTemp > -10)
+      else if ((currentTemp < 100 && currentTemp >= 10) || (currentTemp < 0 && currentTemp > -10))
       {
         lcd.print("  ");
+      }
+      else if (currentTemp >= 100 || (currentTemp <= -10 && currentTemp > -100))
+      {
+        lcd.print(" ");
       }
       lcd.print(currentTemp, 0);
       lcd.print(" ");
@@ -1041,14 +1059,18 @@ void displayInfo(int displayMode)
       {
         currentTemp = currentTemp * 9.0 / 5.0 + 32.0; // convert to deg F
       }
-      lcd.setCursor(5, 1);
-      if ((currentTemp <= -10 && currentTemp > -100) || (currentTemp >= 10 && currentTemp < 100))
+      lcd.setCursor(4, 1);
+      if (currentTemp < 10 && currentTemp >= 0)
       {
-        lcd.print(" ");
+        lcd.print("   ");
       }
-      else if (currentTemp < 10 && currentTemp > -10)
+      else if ((currentTemp < 100 && currentTemp >= 10) || (currentTemp < 0 && currentTemp > -10))
       {
         lcd.print("  ");
+      }
+      else if (currentTemp >= 100 || (currentTemp <= -10 && currentTemp > -100))
+      {
+        lcd.print(" ");
       }
       lcd.print(currentTemp, 0);
       lcd.print(" ");
@@ -1073,14 +1095,18 @@ void displayInfo(int displayMode)
       {
         currentTemp = currentTemp * 9.0 / 5.0 + 32.0; // convert to deg F
       }
-      lcd.setCursor(5, 1);
-      if ((currentTemp <= -10 && currentTemp > -100) || (currentTemp >= 10 && currentTemp < 100))
+      lcd.setCursor(4, 1);
+      if (currentTemp < 10 && currentTemp >= 0)
       {
-        lcd.print(" ");
+        lcd.print("   ");
       }
-      else if (currentTemp < 10 && currentTemp > -10)
+      else if ((currentTemp < 100 && currentTemp >= 10) || (currentTemp < 0 && currentTemp > -10))
       {
         lcd.print("  ");
+      }
+      else if (currentTemp >= 100 || (currentTemp <= -10 && currentTemp > -100))
+      {
+        lcd.print(" ");
       }
       lcd.print(currentTemp, 0);
       lcd.print(" ");
@@ -1128,14 +1154,18 @@ void displayInfo(int displayMode)
       {
         currentTemp = currentTemp * 9.0 / 5.0 + 32.0; // convert to deg F
       }
-      lcd.setCursor(5,1);
-      if ((currentTemp <= -10 && currentTemp > -100) || (currentTemp >= 10 && currentTemp < 100))
+      lcd.setCursor(4, 1);
+      if (currentTemp < 10 && currentTemp >= 0)
       {
-        lcd.print(" ");
+        lcd.print("   ");
       }
-      else if (currentTemp < 10 && currentTemp > -10)
+      else if ((currentTemp < 100 && currentTemp >= 10) || (currentTemp < 0 && currentTemp > -10))
       {
         lcd.print("  ");
+      }
+      else if (currentTemp >= 100 || (currentTemp <= -10 && currentTemp > -100))
+      {
+        lcd.print(" ");
       }
       lcd.print(currentTemp, 0);
       lcd.print(" ");
@@ -1626,15 +1656,8 @@ void displayInfoLarge(int displayMode)
       lcd.setCursor(12, 0);
       lcd.print("Oil");
       lcd.setCursor(9, 1);
-      if (useCelcius == 1)
-      {
-        lcd.print(".");
-        lcd.print(oilString[3]);
-      }
-      else
-      {
-        lcd.print("  ");
-      }
+      lcd.print(".");
+      lcd.print(oilString[3]);
       if (useCelcius == 1)
       {
         lcd.print(" bar");
