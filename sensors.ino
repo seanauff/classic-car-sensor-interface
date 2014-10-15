@@ -69,6 +69,7 @@ const int fuelLevelPin = A2; // pin for fuel level
 const int coolantTempPin = A3; // pin for coolant temp
 const int autoDimPin = A4; // pin for external brightness control
 const int AFRatioPin = A5; // pin for LSU 4.9 O2 sensor controller linear output
+const int intakePressPin = A6; // pin for intake manifold pressure (vac or boost)
 
 // analog input setup
 const float regVoltage = 5.9; // instrument unit voltage regulator output (Volts)
@@ -97,7 +98,7 @@ Encoder modeSwitch(encoderPin1, encoderPin2);
 
 // Display modes setup
 const int modeMin = 1;
-const int modeMax = 14; // number of modes
+const int modeMax = 15; // number of modes
 
 // normal modes - this sets order
 const int modeClock = 1;
@@ -111,9 +112,10 @@ const int modeTransTemp = 8;
 const int modeIntakeTemp = 9;
 const int modeTach = 10;
 const int modeAFRatio = 11;
-const int modeFuelLevel = 12;
-const int modeLCDSetup = 13;
-const int modeSystemSetup = 14;
+const int modeIntakePress = 12;
+const int modeFuelLevel = 13;
+const int modeLCDSetup = 14;
+const int modeSystemSetup = 15;
 
 // hidden modes - not in normal rotation (inside menus, etc.)
 const int modeRefreshInterval = 92;
@@ -745,7 +747,7 @@ float getBattVoltage()
   float R2 = 38300.0; // value of R2 in voltage divider (ohms)
   // take 10 readings and sum them
   int val = 0;
-  for (int i = 1 ; i <= 10 ; i++)
+  for (int i = 1; i <= 10; i++)
   {
     val += analogRead(battVoltagePin);
   }
@@ -765,7 +767,7 @@ float getOilPress()
   float R2 = 100000.0; // value of R2 in voltage divider (ohms)
   // take 10 readings and sum them
   int val = 0;
-  for (int i = 1 ; i <= 10 ; i++)
+  for (int i = 1; i <= 10; i++)
   {
     val += analogRead(oilPressPin);
   }
@@ -788,7 +790,7 @@ float getFuelLevel()
   float R2 = 100000.0; // value of R2 in voltage divider (ohms)
   // take 10 readings and sum them
   int val = 0;
-  for (int i = 1 ; i <= 10 ; i++)
+  for (int i = 1; i <= 10; i++)
   {
     val += analogRead(oilPressPin);
   }
@@ -811,7 +813,7 @@ float getCoolantTemp()
   float R2 = 100000.0; // value of R2 in voltage divider (ohms)
   // take 10 readings and sum them
   int val = 0;
-  for (int i = 1 ; i <= 10 ; i++)
+  for (int i = 1; i <= 10; i++)
   {
     val += analogRead(coolantTempPin);
   }
@@ -821,7 +823,7 @@ float getCoolantTemp()
   float Vout = val / 1023.0 * 5.0; // convert 10-bit value to Voltage
   float VI = Vout * (R1 + R2) / R2; // solve for input Voltage
   float Rsender = VI * coolantGaugeOhms / (regVoltage - VI); // solve for sensor resistance
-  float temp = pow(SHparamA + SHparamB * log(Rsender) + SHparamC * pow(log(Rsender),3),-1) - 273.15; // solve for temperature based on calibration curve based on Steinhart–Hart equation
+  float temp = pow(SHparamA + SHparamB * log(Rsender) + SHparamC * pow(log(Rsender), 3), -1) - 273.15; // solve for temperature based on calibration curve based on Steinhart–Hart equation
   return temp; // return temp in deg C
 }
 
@@ -833,7 +835,7 @@ float getLambda()
 {
   // take 10 readings and sum them
   int val = 0;
-  for (int i = 1 ; i <= 10 ; i++)
+  for (int i = 1; i <= 10; i++)
   {
     val += analogRead(AFRatioPin);
   }
@@ -841,6 +843,31 @@ float getLambda()
   val /= 10; // get average value
   float lambda = (map(val, 0, 1023, 680, 1360)) / 1000.0; // calculate lambda value avoiding limitations of map()
   return lambda;
+}
+
+// reads analog output of intake manifold pressure sensor
+// returns gauge pressure in psi (relative to 1 atm, boost is positive, vac is negative)
+float getIntakePress()
+{
+  // take 10 readings and sum them
+  int val = 0;
+  for (int i = 1; i <= 10; i++)
+  {
+    val += analogRead(intakePressPin);
+  }
+  val += 5; // allows proper rounding due to using integer math
+  val /= 10; // get average value
+  float volts = val / 1023.0 * 5.0;
+  float pressure = 0;
+  if (volts <= 1.0)
+  {
+    pressure = 29.0 * volts - 29.0; // vac
+  }
+  else
+  {
+    pressure = 14.5 * volts - 14.5; // boost
+  }
+  return pressure;
 }
 
 // Interrupt Service Routine
@@ -1415,6 +1442,42 @@ void displayInfo(int displayMode)
       lcd.print(currentAFRatio, 1);
       break;
     }
+    case modeIntakePress:
+    {
+      float currentIntakePress = getIntakePress();
+      if (useCelcius == 1)
+      {
+        currentIntakePress = currentIntakePress * 0.06895; // convert to bar
+      }
+      lcd.setCursor(5, 0);
+      if (currentIntakePress <= 0)
+      {
+        lcd.print("Vacuum");
+      }
+      else
+      {
+        lcd.print("Boost ");
+      }
+      lcd.setCursor(3, 1);
+      if (currentIntakePress < 10 && currentIntakePress >= 0)
+      {
+        lcd.print("  ");
+      }
+      else if ((currentIntakePress < 0 && currentIntakePress > -10) || currentIntakePress >= 10)
+      {
+        lcd.print(" ");
+      }
+      lcd.print(currentIntakePress, 1);
+      if (useCelcius == 0)
+      {
+        lcd.print(" psi");
+      }
+      else
+      {
+        lcd.print(" bar");
+      }
+      break;
+    }
     case modeRefreshInterval:
     {
       lcd.setCursor(0, 0);
@@ -1512,7 +1575,7 @@ void displayInfoLarge(int displayMode)
       boolean significantZero = false;
       for (int i = 0; i < 2; i++)
       {
-        if(battString[i] == 0 && !significantZero && i<1)
+        if(battString[i] == 0 && !significantZero && i < 1)
         {
           bigNum.clearLargeNumber(i * 3);
         }
@@ -1563,8 +1626,15 @@ void displayInfoLarge(int displayMode)
       lcd.setCursor(12, 0);
       lcd.print("Oil");
       lcd.setCursor(9, 1);
-      lcd.print(".");
-      lcd.print(oilString[3]);
+      if (useCelcius == 1)
+      {
+        lcd.print(".");
+        lcd.print(oilString[3]);
+      }
+      else
+      {
+        lcd.print("  ");
+      }
       if (useCelcius == 1)
       {
         lcd.print(" bar");
@@ -1935,6 +2005,18 @@ void displayInfoLarge(int displayMode)
       if (isNegative)
       {
         lcd.setCursor(0, 0);
+        if (currentTemp < 10)
+        {
+          lcd.print("    ");
+        }
+        else if (currentTemp < 20)
+        {
+          lcd.print("   ");
+        }
+        else if (currentTemp < 100)
+        {
+          lcd.print(" ");
+        }
         lcd.print("-");
       }
       sensors.requestTemperatures();
@@ -1970,6 +2052,72 @@ void displayInfoLarge(int displayMode)
       lcd.print(".");
       lcd.print(AFRString[2]);
       lcd.print(" Ratio");
+      break;
+    }
+    case modeIntakePress:
+    {
+      float currentIntakePress = getIntakePress();
+      if (useCelcius == 1)
+      {
+        currentIntakePress = currentIntakePress * 0.06895; // convert to bar
+      }
+      boolean isNegative = false;
+      if(currentIntakePress < 0)
+      {
+        isNegative = true;
+        currentIntakePress = abs(currentIntakePress);
+      }
+      currentIntakePress *= 10;
+      int currentIntakePressInt = int(currentIntakePress + 0.5);
+      byte intakePressString[3];
+      intakePressString[2] = currentIntakePressInt % 10;
+      currentIntakePressInt /= 10;
+      intakePressString[1] = currentIntakePressInt % 10;
+      currentIntakePressInt /= 10;
+      intakePressString[0] = currentIntakePressInt % 10;
+      boolean significantZero = false;
+      for (int i = 0 ; i < 2 ; i++)
+      {
+        if( intakePressString[i] == 0 && !significantZero && i < 1)
+        {
+          bigNum.clearLargeNumber(i * 3);
+        }
+        else
+        {
+          bigNum.displayLargeNumber(intakePressString[i], i * 3);
+          significantZero = true;
+        }
+      }
+      lcd.setCursor(9, 0);
+      if (isNegative)
+      {
+        lcd.print("Vacuum");
+      }
+      else
+      {
+        lcd.print("Boost ");
+      }
+      lcd.setCursor(6, 1);
+      lcd.print(".");
+      lcd.print(intakePressString[2]);
+      if (useCelcius == 0)
+      {
+        lcd.print(" psi");
+      }
+      else
+      {
+        lcd.print(" bar");
+      }
+      if (isNegative)
+      {
+        lcd.setCursor(0, 0);
+        currentIntakePress /= 10;
+        if(currentIntakePress < 10)
+        {
+          lcd.print(" ");
+        }
+        lcd.print("-");
+      }
       break;
     }
     case modeLCDSetup: // Display Settings
