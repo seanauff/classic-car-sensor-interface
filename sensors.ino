@@ -1567,11 +1567,11 @@ void displayInfoLarge(int displayMode)
       battVoltage *= 10;
       int battVoltageInt = int(battVoltage + 0.5);
       byte battString[3];
-      battString[2] = battVoltageInt%10;
+      battString[2] = battVoltageInt % 10;
       battVoltageInt /= 10;
-      battString[1] = battVoltageInt%10;
+      battString[1] = battVoltageInt % 10;
       battVoltageInt /= 10;
-      battString[0] = battVoltageInt%10;
+      battString[0] = battVoltageInt % 10;
       boolean significantZero = false;
       for (int i = 0; i < 2; i++)
       {
@@ -1741,6 +1741,18 @@ void displayInfoLarge(int displayMode)
       if (isNegative)
       {
         lcd.setCursor(0, 0);
+        if (currentTemp < 10)
+        {
+          lcd.print("    ");
+        }
+        else if (currentTemp < 20)
+        {
+          lcd.print("   ");
+        }
+        else if (currentTemp < 100)
+        {
+          lcd.print(" ");
+        }
         lcd.print("-");
       }
       sensors.requestTemperatures();
@@ -1794,6 +1806,18 @@ void displayInfoLarge(int displayMode)
       if (isNegative)
       {
         lcd.setCursor(0, 0);
+        if (currentTemp < 10)
+        {
+          lcd.print("    ");
+        }
+        else if (currentTemp < 20)
+        {
+          lcd.print("   ");
+        }
+        else if (currentTemp < 100)
+        {
+          lcd.print(" ");
+        }
         lcd.print("-");
       }
       sensors.requestTemperatures();
@@ -1847,6 +1871,18 @@ void displayInfoLarge(int displayMode)
       if (isNegative)
       {
         lcd.setCursor(0, 0);
+        if (currentTemp < 10)
+        {
+          lcd.print("    ");
+        }
+        else if (currentTemp < 20)
+        {
+          lcd.print("   ");
+        }
+        else if (currentTemp < 100)
+        {
+          lcd.print(" ");
+        }
         lcd.print("-");
       }
       break;
@@ -1899,6 +1935,18 @@ void displayInfoLarge(int displayMode)
       if (isNegative)
       {
         lcd.setCursor(0, 0);
+        if (currentTemp < 10)
+        {
+          lcd.print("    ");
+        }
+        else if (currentTemp < 20)
+        {
+          lcd.print("   ");
+        }
+        else if (currentTemp < 100)
+        {
+          lcd.print(" ");
+        }
         lcd.print("-");
       }
       sensors.requestTemperatures();
@@ -1952,6 +2000,18 @@ void displayInfoLarge(int displayMode)
       if (isNegative)
       {
         lcd.setCursor(0, 0);
+        if (currentTemp < 10)
+        {
+          lcd.print("    ");
+        }
+        else if (currentTemp < 20)
+        {
+          lcd.print("   ");
+        }
+        else if (currentTemp < 100)
+        {
+          lcd.print(" ");
+        }
         lcd.print("-");
       }
       sensors.requestTemperatures();
@@ -2062,7 +2122,7 @@ void displayInfoLarge(int displayMode)
         currentIntakePress = currentIntakePress * 0.06895; // convert to bar
       }
       boolean isNegative = false;
-      if(currentIntakePress < 0)
+      if(currentIntakePress < 0.05)
       {
         isNegative = true;
         currentIntakePress = abs(currentIntakePress);
