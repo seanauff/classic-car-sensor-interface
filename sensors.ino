@@ -775,7 +775,7 @@ void writeLCDValues()
 float getBattVoltage()
 {
   // Voltage divider maps 18 V to 5 V
-  // resolution of input voltage: 0.0176 V
+  // resolution of input voltage: 0.0176 V = 17.6 mV
   float R1 = 100000.0; // value of R1 in voltage divider (ohms)
   float R2 = 38300.0; // value of R2 in voltage divider (ohms)
   // take 10 readings and sum them
@@ -903,15 +903,27 @@ float getIntakePress()
   return pressure;
 }
 
+// checks accumulated tach signal pulses and calculates engine speed
+// returns engine speed in RPM
+int getRPM()
+{
+  int RPM = int(RPMpulses / float(engineCylinders / 2) * (60000.0 / float(refreshInterval))); // calculate RPM
+  RPMpulses = 0; // reset pulse count to 0
+  return RPM;
+}
+
 // gets data needed to calculate mass (air) flow rate: intake temp, intake pressure, RPM, engine displacement
+// returns mass (air) flow rate in g/s
 float getMAFR()
 {
-  int currentRPM = int(RPMpulses / (engineCylinders / 2) * (60000.0 / refreshInterval)); // calculate RPM
-  RPMpulses = 0; // reset pulse count to 0
+  int currentRPM = getRPM();
+  float VE = 0.92; // volumetric efficiency (dependent on intake pressure and engine speed, assumed constant for now)
   float intakeTempAbsolute = sensors.getTempC(intakeTempDigital) + 273.15; // intake temp in Kelvin
   float coolantTempAbsolute = getCoolantTemp() + 273.15; // coolant temp in Kelvin
   float intakePressureAbsolute = (getIntakePress() + 14.7) * 0.06895; // intake pressure in bar (absolute)
-  
+  float airDensity = intakePressureAbsolute * 29.0 / 8.314e-2 / (intakeTempAbsolute + coolantTempAbsolute) / 2; // calculate air density in g/L. Relative weightings of intake and engine temperature will change with engine speed. Assumed constant 50/50 for now
+  float MAFR = currentRPM * displacement / 61.024 / 2.0 * VE * airDensity / 60.0; // calculate MAFR in g/s
+  return MAFR;
 }
 
 // Interrupt Service Routine
@@ -1164,8 +1176,7 @@ void displayInfo(int displayMode)
     {
       lcd.setCursor(2, 0);
       lcd.print("Engine Speed");
-      int currentRPM = int(RPMpulses / (engineCylinders / 2) * (60000.0 / refreshInterval));
-      RPMpulses = 0; // reset pulses to 0 for next update cycle
+      int currentRPM = getRPM();
       lcd.setCursor(4, 1);
       if(currentRPM < 10)
       {
@@ -1580,8 +1591,7 @@ void displayInfoLarge(int displayMode)
   {
     case modeTach:
     {
-      int currentRPM = int(RPMpulses / (engineCylinders / 2) * (60000.0 / refreshInterval)); // calculate RPM
-      RPMpulses = 0; // reset pulse count to 0
+      int currentRPM = getRPM();
       
       // extract digits
       byte RPMString[4];
