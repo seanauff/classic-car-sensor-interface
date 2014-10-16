@@ -41,6 +41,8 @@ const int lcdAutoDimAddress = 5;
 const int lcdBigFontAddress = 6;
 const int engineCylindersAddress = 7;
 const int refreshIntervalAddress = 8;
+const int displacementAddress1 = 9;
+const int displacementAddress2 = 10;
 
 // digital pins
 const int switchPin = 0; // momentary switch on interrupt 0 (digital pin 2)
@@ -118,6 +120,7 @@ const int modeLCDSetup = 14;
 const int modeSystemSetup = 15;
 
 // hidden modes - not in normal rotation (inside menus, etc.)
+const int modeDisplacement = 91;
 const int modeRefreshInterval = 92;
 const int modeUseCelcius = 93;
 const int modeEngineCylinders = 94;
@@ -156,6 +159,7 @@ byte useCelcius = 0; // unit selector: 0 = English, 1 = SI
 byte lcdAutoDim = 0; // automatic brightness adjust: 0 = OFF, 1 = ON
 byte lcdBigFont = 1; // Big Font: 0 = OFF, 1 = ON
 byte engineCylinders = 8; // for tach calculation (pulses per revolution = cylinders / 2)
+int displacement = 390; // (units of cu in) for MAFR calculations
 int refreshInterval = 750; // milliseconds between sensor updates
 
 // timing values
@@ -183,6 +187,8 @@ void setup()
     EEPROM.write(lcdBigFontAddress, 255);
     EEPROM.write(engineCylindersAddress, 255);
     EEPROM.write(refreshIntervalAddress, 255);
+    EEPROM.write(displacementAddress1, 255);
+    EEPROM.write(displacementAddress2, 255);
     setTime(currentHour, currentMinute, currentSecond, currentDay, currentMonth, currentYear);
     RTC.set(now());
   }
@@ -219,8 +225,12 @@ void setup()
   {
     refreshInterval = EEPROM.read(refreshIntervalAddress) * 10; // value is stored in centiseconds (0.01 s) to fit into a byte. Multiple by 10 to get value in milliseconds
   }
+  if (EEPROM.read(displacementAddress1) < 255 || EEPROM.read(displacementAddress2) < 255)
+  {
+    displacement = EEPROM.read(displacementAddress1) * 256 + EEPROM.read(displacementAddress2); // int value is stored as 2 bytes
+  }
   
-  // get RTC time
+  // set the internal clock from the RTC
   setSyncProvider(RTC.get);
   // set time to default if RTC not set
   if (timeStatus() != timeSet)
@@ -419,6 +429,29 @@ void loop()
     EEPROM.write(engineCylindersAddress, engineCylinders);
     buttonPressed = false;
     lcd.clear();
+    // change displacement
+    modeSwitch.write((displacement - 1) * 4);
+    // loop until button pressed
+    while(!buttonPressed)
+    {
+      displacement = modeSwitch.read() / 4 + 1;
+      if(displacement < 100)
+      {
+        displacement = 100;
+        modeSwitch.write((displacement - 1) * 4);
+      }
+      else if (displacement > 599)
+      {
+        displacement = 599;
+        modeSwitch.write((displacement - 1) * 4);
+      }
+      displayInfo(modeDisplacement);
+    }
+    // break down int into 2 bytes for EEPROM storage
+    EEPROM.write(displacementAddress1, displacement / 256);
+    EEPROM.write(displacementAddress2, displacement % 256);
+    buttonPressed = false;
+    lcd.clear();
     // change unit system
     modeSwitch.write((useCelcius - 1) * 4);
     // loop until button pressed
@@ -440,7 +473,7 @@ void loop()
     EEPROM.write(useCelciusAddress, useCelcius);
     buttonPressed = false;
     lcd.clear();
-    // change update Frequency (refreshInterval) in increments of 50 ms
+    // change update frequency (refreshInterval) in increments of 50 ms
     modeSwitch.write(((refreshInterval / 50) - 1) * 4);
     while(!buttonPressed)
     {
@@ -611,7 +644,7 @@ void loop()
     {
       useCelcius=0;
     }
-    EEPROM.write(useCelciusAddress,useCelcius); // store new value to EEPROM
+    EEPROM.write(useCelciusAddress, useCelcius); // store new value to EEPROM
   }
   
   // if no button pressed, read Encoder and change modes
@@ -679,31 +712,31 @@ void setRGBFromHue()
     lcdLEDGreen = map(hue, 1, 20, 0, 255);
     lcdLEDBlue = 0;
   }
-  else if (hue<=40)
+  else if (hue <= 40)
   {
     lcdLEDRed = map(hue, 21, 40, 255, 0);
     lcdLEDGreen = 255;
     lcdLEDBlue = 0;
   }
-  else if (hue<=60)
+  else if (hue <= 60)
   {
     lcdLEDRed = 0;
     lcdLEDGreen = 255;
     lcdLEDBlue = map(hue, 41, 60, 0, 255);
   }
-  else if (hue<=80)
+  else if (hue <= 80)
   {
     lcdLEDRed = 0;
     lcdLEDGreen = map(hue, 61, 80, 255, 0);
     lcdLEDBlue = 255;
   }
-  else if (hue<=100)
+  else if (hue <= 100)
   {
     lcdLEDRed = map(hue, 81, 100, 0, 255);
     lcdLEDGreen = 0;
     lcdLEDBlue = 255;
   }
-  else if (hue<=120)
+  else if (hue <= 120)
   {
     lcdLEDRed = 255;
     lcdLEDGreen = 0;
@@ -717,7 +750,7 @@ void setAutoBrightness()
   // only do this if feature is enabled in setttings
   if(lcdAutoDim == 1)
   {
-    lcdBrightness=map(analogRead(autoDimPin), 0, 1023, 0, 100);
+    lcdBrightness = map(analogRead(autoDimPin), 0, 1023, 0, 100);
   }
 }
 
@@ -873,6 +906,11 @@ float getIntakePress()
 // gets data needed to calculate mass (air) flow rate: intake temp, intake pressure, RPM, engine displacement
 float getMAFR()
 {
+  int currentRPM = int(RPMpulses / (engineCylinders / 2) * (60000.0 / refreshInterval)); // calculate RPM
+  RPMpulses = 0; // reset pulse count to 0
+  float intakeTempAbsolute = sensors.getTempC(intakeTempDigital) + 273.15; // intake temp in Kelvin
+  float coolantTempAbsolute = getCoolantTemp() + 273.15; // coolant temp in Kelvin
+  float intakePressureAbsolute = (getIntakePress() + 14.7) * 0.06895; // intake pressure in bar (absolute)
   
 }
 
@@ -1221,7 +1259,7 @@ void displayInfo(int displayMode)
       currentDay = day(currentTime);
       currentYear = year(currentTime);
       byte currentDayOfWeek = weekday(currentTime);
-      lcd.setCursor(4,0);
+      lcd.setCursor(4, 0);
       if(currentHour < 10)
       {
         lcd.print(" ");
@@ -1519,6 +1557,17 @@ void displayInfo(int displayMode)
       }
       lcd.print(refreshInterval);
       lcd.print(" ms");
+      break;
+    }
+    case modeDisplacement:
+    {
+      lcd.setCursor(2, 0);
+      lcd.print("Displacement");
+      lcd.setCursor(1, 1);
+      lcd.print(displacement);
+      lcd.print(" ci  ");
+      lcd.print(float(displacement) / 61.024, 2);
+      lcd.print(" L");
       break;
     }
   }
