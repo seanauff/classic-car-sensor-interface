@@ -22,12 +22,12 @@
 */
 
 // included library            // source
-#include <BigNumbers.h>        // https://github.com/seanauff/BigNumbers
+#include <BigNumbersFast.h>    // https://github.com/seanauff/BigNumbers
 #include <DallasTemperature.h> // http://www.hacktronics.com/Tutorials/arduino-1-wire-tutorial.html 
 #include <DS1307RTC.h>         // http://www.pjrc.com/teensy/td_libs_DS1307RTC.html 
 #include <EEPROM.h>            // http://arduino.cc/en/Reference/EEPROM 
 #include <Encoder.h>           // https://www.pjrc.com/teensy/td_libs_Encoder.html 
-#include <LiquidCrystal.h>     // http://arduino.cc/en/Reference/LiquidCrystal 
+#include <LiquidCrystalFast.h> // https://www.pjrc.com/teensy/td_libs_LiquidCrystal.html 
 #include <OneWire.h>           // http://www.hacktronics.com/Tutorials/arduino-1-wire-tutorial.html 
 #include <Time.h>              // http://www.pjrc.com/teensy/td_libs_Time.html 
 #include <Wire.h>              // http://arduino.cc/en/reference/wire 
@@ -44,21 +44,26 @@ const int refreshIntervalAddress = 8;
 const int displacementAddress1 = 9;
 const int displacementAddress2 = 10;
 
+// interrupts
+const int switchInterrupt = 0; // rotary encoder momentary switch on interrupt 0 (digital pin 2)
+const int tachInterrupt = 1; // tach signal on interrupt 1 (digital pin 3)
+
 // digital pins
-const int switchPin = 0; // momentary switch on interrupt 0 (digital pin 2)
-const int tachPin = 1; // tach signal on interrupt 1 (digital pin 3)
+const int switchPin = 2; // rotary encoder momentary switch on digital pin 2 (interrupt 0)
+const int tachPin = 3; // tach signal on digital pin 3 (interrupt 1)
 const int lcdContrastPin = 9; // contrast adjust on digital pin 9 (PWM)
 const int encoderPin1 = 18; // A leg of encoder on digital pin 18 (interrupt 5)
 const int encoderPin2 = 19; // B leg of encoder on digital pin 19 (interrupt 4)
 const int wireSDAPin = 20; // I2C SDA
 const int wireSCLPin = 21; // I2C SCL
 const int factoryResetPin = 22; // held HIGH by internal pullup, short to GND during bootup to reset to factory defualts 
-const int oneWirePin = 24; // data pin for 1-Wire devices (DS18B20)
-const int lcdD7Pin = 38; // LCD D7 pin
-const int lcdD6Pin = 39; // LCD D6 pin
-const int lcdD5Pin = 40; // LCD D5 pin
-const int lcdD4Pin = 41; // LCD D4 pin
-const int lcdEPin = 42; // LCD E Pin
+const int oneWirePin = 23; // data pin for 1-Wire devices (DS18B20)
+const int lcdD7Pin = 37; // LCD D7 pin
+const int lcdD6Pin = 38; // LCD D6 pin
+const int lcdD5Pin = 39; // LCD D5 pin
+const int lcdD4Pin = 40; // LCD D4 pin
+const int lcdEPin = 41; // LCD E Pin
+const int lcdRWPin = 42; // LCD RW Pin
 const int lcdRSPin = 43; // LCD RS pin
 const int lcdLEDRedPin = 44; // control for Red LED (PWM)
 const int lcdLEDGreenPin = 45; // control for Green LED (PWM)
@@ -115,6 +120,7 @@ const int modeIntakeTemp = 9;
 const int modeTach = 10;
 const int modeAFRatio = 11;
 const int modeIntakePress = 12;
+
 const int modeFuelLevel = 13;
 const int modeLCDSetup = 14;
 const int modeSystemSetup = 15;
@@ -134,7 +140,7 @@ int mode = modeClock; // mode to start in
 int previousMode = mode; // keep track of last mode to know when the mode changes to enable an immediate screen update
 
 // LCD setup
-LiquidCrystal lcd(lcdRSPin, lcdEPin, lcdD4Pin, lcdD5Pin, lcdD6Pin, lcdD7Pin);
+LiquidCrystalFast lcd(lcdRSPin, lcdRWPin, lcdEPin, lcdD4Pin, lcdD5Pin, lcdD6Pin, lcdD7Pin);
 // default LCD values (changes stored in EEPROM)
 int lcdContrast = 80; // scale from 0-100, map to 0-255 for analogWrite()
 int lcdBrightness = 100; // scale from 0-100, map to 0-255 for analogWrite()
@@ -143,7 +149,7 @@ int lcdHue = 72; // scale from 1-120, use setRGBFromHue() to set lcdLEDRed, lcdL
 int lcdLEDRed; // scale from 0-255
 int lcdLEDGreen; // scale from 0-255
 int lcdLEDBlue; // scale from 0-255
-BigNumbers bigNum(&lcd); // create BigNumbers object for displaying large numbers
+BigNumbersFast bigNum(&lcd); // create BigNumbers object for displaying large numbers
 
 // clock setup
 // default values to use if RTC not set
@@ -239,8 +245,8 @@ void setup()
   }
   
   // setup digital pins
-  pinMode(2, INPUT_PULLUP); // enable internal pullup for encoder switch pin
-  pinMode(3, INPUT_PULLUP); // enable internal pullup for tach pin
+  pinMode(switchPin, INPUT_PULLUP); // enable internal pullup for encoder switch pin
+  pinMode(tachPin, INPUT_PULLUP); // enable internal pullup for tach pin
   pinMode(lcdContrastPin, OUTPUT); // set lcdContrastPin as OUTPUT
   pinMode(lcdLEDRedPin, OUTPUT); // set lcdLEDRedPin as OUTPUT
   pinMode(lcdLEDGreenPin, OUTPUT); // set lcdLEDGreenPin as OUTPUT
@@ -263,7 +269,7 @@ void setup()
   sensors.setResolution(transTempDigital, 9);
   sensors.requestTemperatures(); // run first temperature conversion on all sensors
   
-  attachInterrupt(switchPin, pressButton, FALLING); // attach interrupt to encoder switch pin to listen for switch presses
+  attachInterrupt(switchInterrupt, pressButton, FALLING); // attach interrupt to encoder switch pin to listen for switch presses
   
   modeSwitch.write((mode - 1) * 4); // write intital mode to Encoder
   
@@ -632,7 +638,7 @@ void loop()
   }
   
   // switch temp and pressure units
-  else if ((mode==modeCoolantTemp || mode==modeInsideTemp || mode==modeOutsideTemp || mode==modeTransTemp || mode==modeOilTemp || mode==modeIntakeTemp || mode==modeOilPress) && buttonPressed==true)
+  else if ((mode==modeCoolantTemp || mode==modeInsideTemp || mode==modeOutsideTemp || mode==modeTransTemp || mode==modeOilTemp || mode==modeIntakeTemp || mode==modeOilPress || mode==modeIntakePress) && buttonPressed==true)
   {
     previousMillis=0; // forces an immediate value update
     buttonPressed=false; 
@@ -673,11 +679,11 @@ void loop()
       // only count interrrupts while showing the tach
       if(mode == modeTach)
       {
-        attachInterrupt(tachPin, countRPM, FALLING);
+        attachInterrupt(tachInterrupt, countRPM, FALLING);
       }
       else
       {
-        detachInterrupt(tachPin);
+        detachInterrupt(tachInterrupt);
       }     
       buttonPressed = false; // reset momentary button in case it was not
     }
