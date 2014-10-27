@@ -22,7 +22,7 @@
 */
 
 // included library            // source
-#include <BigNumbersFast.h>    // https://github.com/seanauff/BigNumbers
+#include <BigNumbersFast.h>    // https://github.com/seanauff/BigNumbers/tree/Fast 
 #include <DallasTemperature.h> // http://www.hacktronics.com/Tutorials/arduino-1-wire-tutorial.html 
 #include <DS1307RTC.h>         // http://www.pjrc.com/teensy/td_libs_DS1307RTC.html 
 #include <EEPROM.h>            // http://arduino.cc/en/Reference/EEPROM 
@@ -79,7 +79,7 @@ const int AFRatioPin = A5; // pin for LSU 4.9 O2 sensor controller linear output
 const int intakePressPin = A6; // pin for intake manifold pressure (vac or boost)
 
 // analog input setup
-const float regVoltage = 5.9; // instrument unit voltage regulator output (Volts)
+const float regVoltage = 5.0; // instrument unit voltage regulator output (Volts)
 const float oilGaugeOhms = 13.0; // resistance of oil pressure gauge (ohms)
 const float fuelGaugeOhms = 13.0; // resistance of fuel level gauge (ohms)
 const float coolantGaugeOhms = 13.0; // resistance of coolant temperature gauge (ohms)
@@ -254,7 +254,7 @@ void setup()
   
   lcd.begin(16, 2); // setup lcd with 16 columns, 2 rows
    
-  TCCR2B = TCCR2B & 0b11111000 | 0x01; // sets Timer 2 PWM frequency to 31372.55 Hz (affects digital pins 9 and 10)
+  TCCR2B = TCCR2B & 0b11111000 | 0x01; // sets Timer 2 PWM frequency to 31372.55 Hz (affects digital pins 9 (LCD Contrast) and 10 (unused))
   
   // update LCD display values
   setRGBFromHue();
@@ -272,8 +272,6 @@ void setup()
   attachInterrupt(switchInterrupt, pressButton, FALLING); // attach interrupt to encoder switch pin to listen for switch presses
   
   modeSwitch.write((mode - 1) * 4); // write intital mode to Encoder
-  
-  Serial.begin(9600);
 }
 
 // main loop, runs continuously after setup()
@@ -562,9 +560,9 @@ void loop()
     buttonPressed = false;
     // set Month
     modeSwitch.write((instantMonth-1)*4);
-    lcd.setCursor(0,0);
+    lcd.setCursor(0, 0);
     lcd.print("     ");
-    lcd.setCursor(0,0);
+    lcd.setCursor(0, 0);
     lcd.print("Month");
     // loop until button pressed
     while(!buttonPressed)
@@ -586,9 +584,9 @@ void loop()
     buttonPressed = false;
     // set Day
     modeSwitch.write((instantDay - 1) * 4);
-    lcd.setCursor(0,0);
+    lcd.setCursor(0, 0);
     lcd.print("     ");
-    lcd.setCursor(0,0);
+    lcd.setCursor(0, 0);
     lcd.print("Day");
     // loop until button pressed
     while(!buttonPressed)
@@ -640,15 +638,15 @@ void loop()
   // switch temp and pressure units
   else if ((mode==modeCoolantTemp || mode==modeInsideTemp || mode==modeOutsideTemp || mode==modeTransTemp || mode==modeOilTemp || mode==modeIntakeTemp || mode==modeOilPress || mode==modeIntakePress) && buttonPressed==true)
   {
-    previousMillis=0; // forces an immediate value update
-    buttonPressed=false; 
-    if(useCelcius==0)
+    previousMillis = 0; // forces an immediate value update
+    buttonPressed = false; 
+    if(useCelcius == 0)
     {
-      useCelcius=1;
+      useCelcius = 1;
     }
-    else if (useCelcius=1)
+    else if (useCelcius = 1)
     {
-      useCelcius=0;
+      useCelcius = 0;
     }
     EEPROM.write(useCelciusAddress, useCelcius); // store new value to EEPROM
   }
@@ -778,10 +776,10 @@ void writeLCDValues()
 
 // reads input voltage
 // returns battery voltage in Volts
+// resolution: 0.0176 V = 17.6 mV
 float getBattVoltage()
 {
   // Voltage divider maps 18 V to 5 V
-  // resolution of input voltage: 0.0176 V = 17.6 mV
   float R1 = 100000.0; // value of R1 in voltage divider (ohms)
   float R2 = 38300.0; // value of R2 in voltage divider (ohms)
   // take 10 readings and sum them
@@ -923,11 +921,11 @@ int getRPM()
 float getMAFR()
 {
   int currentRPM = getRPM();
-  float VE = 0.92; // volumetric efficiency (dependent on intake pressure and engine speed, assumed constant for now)
+  float VE = 0.9; // volumetric efficiency (dependent on intake pressure and engine speed, assumed constant for now)
   float intakeTempAbsolute = sensors.getTempC(intakeTempDigital) + 273.15; // intake temp in Kelvin
   float coolantTempAbsolute = getCoolantTemp() + 273.15; // coolant temp in Kelvin
   float intakePressureAbsolute = (getIntakePress() + 14.7) * 0.06895; // intake pressure in bar (absolute)
-  float airDensity = intakePressureAbsolute * 29.0 / 8.314e-2 / (intakeTempAbsolute + coolantTempAbsolute) / 2; // calculate air density in g/L. Relative weightings of intake and engine temperature will change with engine speed. Assumed constant 50/50 for now
+  float airDensity = intakePressureAbsolute * 29.0 / 8.314e-2 / (0.5 * intakeTempAbsolute + 0.5 * coolantTempAbsolute); // calculate air density in g/L. Relative weightings of intake and engine temperature will change with engine speed. Assumed constant 50/50 for now
   float MAFR = currentRPM * displacement / 61.024 / 2.0 * VE * airDensity / 60.0; // calculate MAFR in g/s
   return MAFR;
 }
@@ -1026,11 +1024,11 @@ void displayInfo(int displayMode)
       lcd.write(char(223)); // degree symbol
       if (useCelcius == 0)
       {
-        lcd.print("F");
+        lcd.write(70); // "F"
       }
       else
       {
-        lcd.print("C");
+        lcd.write(67); // "C"
       }
       break;
     }
@@ -1061,11 +1059,11 @@ void displayInfo(int displayMode)
       lcd.write(char(223)); // degree symbol
       if (useCelcius == 0)
       {
-        lcd.print("F");
+        lcd.write(70); // "F"
       }
       else
       {
-        lcd.print("C");
+        lcd.write(67); // "C"
       }
       sensors.requestTemperatures(); // request a temperature conversion
       break;
@@ -1097,11 +1095,11 @@ void displayInfo(int displayMode)
       lcd.write(char(223)); // degree symbol
       if (useCelcius == 0)
       {
-        lcd.print("F");
+        lcd.write(70); // "F"
       }
       else
       {
-        lcd.print("C");
+        lcd.write(67); // "C"
       }
       sensors.requestTemperatures(); // request a temperature conversion
       break;
@@ -1133,11 +1131,11 @@ void displayInfo(int displayMode)
       lcd.write(char(223)); // degree symbol
       if (useCelcius == 0)
       {
-        lcd.print("F");
+        lcd.write(70); // "F"
       }
       else
       {
-        lcd.print("C");
+        lcd.write(67); // "C"
       }
       sensors.requestTemperatures(); // request a temperature conversion
       break;
@@ -1169,11 +1167,11 @@ void displayInfo(int displayMode)
       lcd.write(char(223)); // degree symbol
       if (useCelcius == 0)
       {
-        lcd.print("F");
+        lcd.write(70); // "F"
       }
       else
       {
-        lcd.print("C");
+        lcd.write(67); // "C"
       }
       sensors.requestTemperatures();
       break;
@@ -1227,11 +1225,11 @@ void displayInfo(int displayMode)
       lcd.write(char(223)); // degree symbol
       if (useCelcius == 0)
       {
-        lcd.print("F");
+        lcd.write(70); // "F"
       }
       else
       {
-        lcd.print("C");
+        lcd.write(67); // "C"
       }
       sensors.requestTemperatures(); // request a temperature conversion
       break;
@@ -1563,6 +1561,28 @@ void displayInfo(int displayMode)
       }
       break;
     }
+	case modeMAFR:
+	{
+	  lcd.setCursor(1, 0);
+	  lcd.print("Mass air flow");
+	  float currentMAFR = getMAFR();
+	  if (useCelcius == 0)
+      {
+        currentMAFR = currentMAFR * 0.1323; // convert to lb/min
+      }
+	  lcd.setCursor(5, 1);
+	  
+	  lcd.print(currentMAFR, 1);
+	  if (useCelcius == 0)
+      {
+        lcd.print(" lb/min");
+      }
+      else
+      {
+        lcd.print(" g/s   ");
+      }
+	  break;
+	}
     case modeRefreshInterval:
     {
       lcd.setCursor(0, 0);
@@ -1768,17 +1788,17 @@ void displayInfoLarge(int displayMode)
       for (int i = 0; i < 2; i++)
       {
         bigNum.displayLargeNumber(minuteString[i], (i * 3) + 7);
-        significantZero = true;
       }
       lcd.setCursor(14, 1);
       if(isAM())
       {
-        lcd.print("AM");
+        lcd.write(65); // "A"
       }
       else
       {
-        lcd.print("PM");
+        lcd.write(80); // "P"
       }
+      lcd.write(77); // "M"
       break;
     }
     case modeIntakeTemp:
@@ -1820,11 +1840,11 @@ void displayInfoLarge(int displayMode)
       lcd.write(char(223));
       if (useCelcius == 0)
       {
-        lcd.print("F");
+        lcd.write(70); // "F"
       }
       else
       {
-        lcd.print("C");
+        lcd.write(67); // "C"
       }
       if (isNegative)
       {
@@ -1885,11 +1905,11 @@ void displayInfoLarge(int displayMode)
       lcd.write(char(223));
       if (useCelcius == 0)
       {
-        lcd.print("F");
+        lcd.write(70); // "F"
       }
       else
       {
-        lcd.print("C");
+        lcd.write(67); // "C"
       }
       if (isNegative)
       {
@@ -1950,11 +1970,11 @@ void displayInfoLarge(int displayMode)
       lcd.write(char(223));
       if (useCelcius == 0)
       {
-        lcd.print("F");
+        lcd.write(70); // "F"
       }
       else
       {
-        lcd.print("C");
+        lcd.write(67); // "C"
       }
       if (isNegative)
       {
@@ -2014,11 +2034,11 @@ void displayInfoLarge(int displayMode)
       lcd.write(char(223));
       if (useCelcius == 0)
       {
-        lcd.print("F");
+        lcd.write(70); // "F"
       }
       else
       {
-        lcd.print("C");
+        lcd.write(67); // "C"
       }
       if (isNegative)
       {
@@ -2079,11 +2099,11 @@ void displayInfoLarge(int displayMode)
       lcd.write(char(223));
       if (useCelcius == 0)
       {
-        lcd.print("F");
+        lcd.write(70); // "F"
       }
       else
       {
-        lcd.print("C");
+        lcd.write(67); // "C"
       }
       if (isNegative)
       {
@@ -2144,11 +2164,11 @@ void displayInfoLarge(int displayMode)
       lcd.write(char(223));
       if (useCelcius == 0)
       {
-        lcd.print("F");
+        lcd.write(70); // "F"
       }
       else
       {
-        lcd.print("C");
+        lcd.write(67); // "C"
       }
       if (isNegative)
       {
