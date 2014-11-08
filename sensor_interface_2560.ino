@@ -681,7 +681,7 @@ void loop()
   }
   
   // switch temp and pressure units
-  else if ((mode==modeCoolantTemp || mode==modeInsideTemp || mode==modeOutsideTemp || mode==modeTransTemp || mode==modeOilTemp || mode==modeIntakeTemp || mode==modeOilPress || mode==modeIntakePress) && buttonPressed==true)
+  else if ((mode==modeCoolantTemp || mode==modeInsideTemp || mode==modeOutsideTemp || mode==modeTransTemp || mode==modeOilTemp || mode==modeIntakeTemp || mode==modeOilPress || mode==modeIntakePress || mode==modeMAFR) && buttonPressed==true)
   {
     previousMillis = 0; // forces an immediate value update
     buttonPressed = false; 
@@ -699,36 +699,40 @@ void loop()
   // if no button pressed, read Encoder and change modes
   else
   {
-    mode = modeSwitch.read() / 4; // read encoder position and set mode
-    // loop around to first mode if reached the end
-    if (mode > modeMax)
+    int modeSwitchPosition = modeSwitch.read();
+    if(modeSwitchPosition % 4 == 0)
     {
-      mode = modeMin;
-      modeSwitch.write(mode * 4);
-    }
-    // loop around to end mode if reached the beginning
-    else if (mode < modeMin)
-    {
-      mode = modeMax;
-      modeSwitch.write(mode * 4);
-    }
-    // check to see if new display mode is selected
-    if(mode != previousMode)
-    {
-      previousMillis = 0; // this will force immediate refresh instead of waiting for normal sensor update interval
-      previousMode = mode; // store new previous mode
-      lcd.clear();
-      // start or stop counting interrupts for engine speed
-      // only count interrrupts while showing the tach
-      if(mode == modeTach)
+      mode = modeSwitchPosition / 4; // read encoder position and set mode
+      // loop around to first mode if reached the end
+      if (mode > modeMax)
       {
-        attachInterrupt(tachInterrupt, countRPM, FALLING);
+        mode = modeMin;
+        modeSwitch.write(mode * 4);
       }
-      else
+      // loop around to end mode if reached the beginning
+      else if (mode < modeMin)
       {
-        detachInterrupt(tachInterrupt);
-      }     
-      buttonPressed = false; // reset momentary button in case it was not
+        mode = modeMax;
+        modeSwitch.write(mode * 4);
+      }
+      // check to see if new display mode is selected
+      if(mode != previousMode)
+      {
+        previousMillis = 0; // this will force immediate refresh instead of waiting for normal sensor update interval
+        previousMode = mode; // store new previous mode
+        lcd.clear();
+        // start or stop counting interrupts for engine speed
+        // only count interrrupts while showing the tach
+        if(mode == modeTach || mode == modeMAFR)
+        {
+          attachInterrupt(tachPin, countRPM, FALLING);
+        }
+        else
+        {
+          detachInterrupt(tachPin);
+        }     
+        buttonPressed = false; // reset momentary button in case it was not
+      }
     }
   }
   
@@ -979,7 +983,7 @@ float getMAFR()
   float coolantTempAbsolute = getCoolantTemp() + 273.15; // coolant temp in Kelvin
   float intakePressureAbsolute = (getIntakePress() + 14.7) * 0.06895; // intake pressure in bar (absolute)
   float airDensity = intakePressureAbsolute * 29.0 / 8.314e-2 / (0.5 * intakeTempAbsolute + 0.5 * coolantTempAbsolute); // calculate air density in g/L. Relative weightings of intake and engine temperature will change with engine speed. Assumed constant 50/50 for now
-  float MAFR = currentRPM * displacement / 61.024 / 2.0 * VE * airDensity / 60.0; // calculate MAFR in g/s
+  float MAFR = currentRPM * displacement / 61.024 / 2.0 * VE * airDensity / 1000; // calculate MAFR in kg/min
   return MAFR;
 }
 
@@ -1621,10 +1625,13 @@ void displayInfo(byte displayMode)
       float currentMAFR = getMAFR();
       if (!useSI)
       {
-        currentMAFR *= 0.1323; // convert to lb/min
+        currentMAFR *= 2.205; // convert to lb/min
       }
-      lcd.setCursor(5, 1);
-	  
+      lcd.setCursor(5, 1);  
+      if (currentMAFR < 10)
+      {
+        lcd.print(" ");
+      }
       lcd.print(currentMAFR, 1);
       if (!useSI)
       {
@@ -1632,7 +1639,7 @@ void displayInfo(byte displayMode)
       }
       else
       {
-        lcd.print(" g/s   ");
+        lcd.print(" kg/min");
       }
       break;
     }
@@ -2095,6 +2102,33 @@ void displayInfoLarge(byte displayMode)
           lcd.print(" ");
         }
         lcd.print("-");
+      }
+      break;
+    }
+    case modeMAFR:
+    {
+      lcd.setCursor(11, 0);
+      lcd.print("MAFR");
+      float currentMAFR = getMAFR();
+      if (!useSI)
+      {
+        currentMAFR *= 2.205; // convert to lb/min
+      }
+      currentMAFR *= 10;
+      int currentMAFRInt = int(currentMAFR + 0.5);
+      byte lastDigit = currentMAFRInt % 10;
+      currentMAFRInt /= 10;
+      bigNum.displayLargeInt(currentMAFRInt, 0, 2, false);
+      lcd.setCursor(6, 1);
+      lcd.print(".");
+      lcd.print(lastDigit);  
+      if (!useSI)
+      {
+        lcd.print("  lb/min");
+      }
+      else
+      {
+        lcd.print("  kg/min");
       }
       break;
     }
