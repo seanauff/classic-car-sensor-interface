@@ -45,29 +45,29 @@ const int displacementAddress1 = 9;
 const int displacementAddress2 = 10;
 
 // interrupts
-const int switchInterrupt = 0; // rotary encoder momentary switch on interrupt 0 (digital pin 2)
-const int tachInterrupt = 1; // tach signal on interrupt 1 (digital pin 3)
+const byte switchInterrupt = 0; // rotary encoder momentary switch on interrupt 0 (digital pin 2)
+const byte tachInterrupt = 1; // tach signal on interrupt 1 (digital pin 3)
 
 // digital pins
-const int switchPin = 2; // rotary encoder momentary switch on digital pin 2 (interrupt 0)
-const int tachPin = 3; // tach signal on digital pin 3 (interrupt 1)
-const int lcdContrastPin = 9; // contrast adjust on digital pin 9 (PWM)
-const int encoderPin1 = 18; // A leg of encoder on digital pin 18 (interrupt 5)
-const int encoderPin2 = 19; // B leg of encoder on digital pin 19 (interrupt 4)
-const int wireSDAPin = 20; // I2C SDA
-const int wireSCLPin = 21; // I2C SCL
-const int factoryResetPin = 22; // held HIGH by internal pullup, short to GND during bootup to reset to factory defualts 
-const int oneWirePin = 23; // data pin for 1-Wire devices (DS18B20)
-const int lcdRSPin = 37; // LCD RS pin
-const int lcdRWPin = 38; // LCD RW pin
-const int lcdEPin = 39; // LCD E pin
-const int lcdD4Pin = 40; // LCD D4 pin
-const int lcdD5Pin = 41; // LCD D5 Pin
-const int lcdD6Pin = 42; // LCD D6 Pin
-const int lcdD7Pin = 43; // LCD D7 pin
-const int lcdLEDRedPin = 44; // control for Red LED (PWM)
-const int lcdLEDGreenPin = 45; // control for Green LED (PWM)
-const int lcdLEDBluePin = 46; // control for Blue LED (PWM)
+const byte switchPin = 2; // rotary encoder momentary switch on digital pin 2 (interrupt 0)
+const byte tachPin = 3; // tach signal on digital pin 3 (interrupt 1)
+const byte lcdContrastPin = 9; // contrast adjust on digital pin 9 (PWM)
+const byte encoderPin1 = 18; // A leg of encoder on digital pin 18 (interrupt 5)
+const byte encoderPin2 = 19; // B leg of encoder on digital pin 19 (interrupt 4)
+const byte wireSDAPin = 20; // I2C SDA
+const byte wireSCLPin = 21; // I2C SCL
+const byte factoryResetPin = 22; // held HIGH by internal pullup, short to GND during bootup to reset to factory defualts 
+const byte oneWirePin = 23; // data pin for 1-Wire devices (DS18B20)
+const byte lcdRSPin = 37; // LCD RS pin
+const byte lcdRWPin = 38; // LCD RW pin
+const byte lcdEPin = 39; // LCD E pin
+const byte lcdD4Pin = 40; // LCD D4 pin
+const byte lcdD5Pin = 41; // LCD D5 Pin
+const byte lcdD6Pin = 42; // LCD D6 Pin
+const byte lcdD7Pin = 43; // LCD D7 pin
+const byte lcdLEDRedPin = 44; // control for Red LED (PWM)
+const byte lcdLEDGreenPin = 45; // control for Green LED (PWM)
+const byte lcdLEDBluePin = 46; // control for Blue LED (PWM)
 
 // analog pins
 const byte battVoltagePin = A0; // pin for battery voltage
