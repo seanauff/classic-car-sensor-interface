@@ -1,9 +1,9 @@
 /*
-  sensor_interface_2560.ino - Software to collect and display automotive sensor data on 16x2 LCD. 
+  sensor_interface_teensy_3_1.ino - Software to collect and display automotive sensor data on 16x2 LCD. 
   
-  Written for use on Arduino MEGA2560, requires additional hardware to run.
+  Written for use on Teensy 3.1, requires additional hardware to run.
   
-  GitHub project page: https://github.com/seanauff/classic-car-sensor-interface
+  GitHub project page: https://github.com/seanauff/classic-car-sensor-interface/tree/teensy
   
   Copyright (C) 2014 Sean Auffinger
  
@@ -24,13 +24,11 @@
 // included library            // source
 #include <BigNumbersFast.h>    // https://github.com/seanauff/BigNumbers/tree/Fast 
 #include <DallasTemperature.h> // http://www.hacktronics.com/Tutorials/arduino-1-wire-tutorial.html 
-#include <DS1307RTC.h>         // http://www.pjrc.com/teensy/td_libs_DS1307RTC.html 
 #include <EEPROM.h>            // http://arduino.cc/en/Reference/EEPROM 
 #include <Encoder.h>           // https://www.pjrc.com/teensy/td_libs_Encoder.html 
 #include <LiquidCrystalFast.h> // https://www.pjrc.com/teensy/td_libs_LiquidCrystal.html 
 #include <OneWire.h>           // http://www.hacktronics.com/Tutorials/arduino-1-wire-tutorial.html 
 #include <Time.h>              // http://www.pjrc.com/teensy/td_libs_Time.html 
-#include <Wire.h>              // http://arduino.cc/en/reference/wire 
 
 // EEPROM memory addresses
 const int lcdContrastAddress = 1;
@@ -44,39 +42,43 @@ const int refreshIntervalAddress = 8;
 const int displacementAddress1 = 9;
 const int displacementAddress2 = 10;
 
-// interrupts
-const int switchInterrupt = 0; // rotary encoder momentary switch on interrupt 0 (digital pin 2)
-const int tachInterrupt = 1; // tach signal on interrupt 1 (digital pin 3)
-
 // digital pins
-const int switchPin = 2; // rotary encoder momentary switch on digital pin 2 (interrupt 0)
-const int tachPin = 3; // tach signal on digital pin 3 (interrupt 1)
-const int lcdContrastPin = 9; // contrast adjust on digital pin 9 (PWM)
-const int encoderPin1 = 18; // A leg of encoder on digital pin 18 (interrupt 5)
-const int encoderPin2 = 19; // B leg of encoder on digital pin 19 (interrupt 4)
-const int wireSDAPin = 20; // I2C SDA
-const int wireSCLPin = 21; // I2C SCL
-const int factoryResetPin = 22; // held HIGH by internal pullup, short to GND during bootup to reset to factory defualts 
-const int oneWirePin = 23; // data pin for 1-Wire devices (DS18B20)
-const int lcdRSPin = 37; // LCD RS pin
-const int lcdRWPin = 38; // LCD RW pin
-const int lcdEPin = 39; // LCD E pin
-const int lcdD4Pin = 40; // LCD D4 pin
-const int lcdD5Pin = 41; // LCD D5 Pin
-const int lcdD6Pin = 42; // LCD D6 Pin
-const int lcdD7Pin = 43; // LCD D7 pin
-const int lcdLEDRedPin = 44; // control for Red LED (PWM)
-const int lcdLEDGreenPin = 45; // control for Green LED (PWM)
-const int lcdLEDBluePin = 46; // control for Blue LED (PWM)
+const byte gpsRXPin = 0; // GPS receive
+const byte gpsTXPin = 1; // GPS transmit
+const byte lcdRSPin = 2; // LCD RS
+const byte canTXPin = 3; // CAN bus transmit
+const byte canRXPin = 4; // CAN bus receive
+const byte lcdLEDRedPin = 5; // control for Red LED (PWM)
+const byte lcdLEDGreenPin = 6; // control for Green LED (PWM)
+const byte lcdRWPin = 7; // LCD RW pin
+const byte lcdEPin = 8; // LCD E pin
+const byte lcdLEDBluePin = 9; // control for Blue LED (PWM)
+const byte spiSSPin = 10; // SPI slave select 1
+const byte spiMOSIPin = 11; // SPI MOSI
+const byte spiMISOPin = 12; // SPI MISO
+const byte spiSCKPin = 13; // SPI SCK
+const byte switchPin = 14; // encoder momentary switch
+const byte encoderPin1 = 15; // A leg of encoder
+const byte encoderPin2 = 16; // B leg of encoder
+const byte tachPin = 17; // tach signal filter input
+const byte lcdD4Pin = 24; // LCD D4 pin
+const byte lcdD5Pin = 25; // LCD D5 Pin
+const byte lcdD6Pin = 26; // LCD D6 Pin
+const byte lcdD7Pin = 27; // LCD D7 pin
+const byte wireSCLPin = 29; // I2C SCL
+const byte wireSDAPin = 30; // I2C SDA
+const byte factoryResetPin = 32; // held HIGH by internal pullup, short to GND during bootup to reset to factory defualts 
+const byte oneWirePin = 33; // data pin for 1-Wire devices (DS18B20)
 
 // analog pins
-const byte battVoltagePin = A0; // pin for battery voltage
-const byte oilPressPin = A1; // pin for oil pressure
-const byte fuelLevelPin = A2; // pin for fuel level
-const byte coolantTempPin = A3; // pin for coolant temp
-const byte autoDimPin = A4; // pin for external brightness control
-const byte AFRatioPin = A5; // pin for LSU 4.9 O2 sensor controller linear output
-const byte intakePressPin = A6; // pin for intake manifold pressure (vac or boost)
+const byte AFRatioPin = A4; // pin for LSU 4.9 O2 sensor controller linear output
+const byte intakePressPin = A5; // pin for intake manifold pressure (vac or boost)
+const byte battVoltagePin = A13; // pin for battery voltage
+const byte fuelLevelPin = A10; // pin for fuel level
+const byte coolantTempPin = A11; // pin for coolant temp
+const byte autoDimPin = A12; // pin for external brightness control
+const byte lcdContrastPin = A14; // constast controlled by DAC
+const byte oilPressPin = A20; // pin for oil pressure
 
 // analog input setup
 const float regVoltage = 5.0; // instrument unit voltage regulator output (Volts)
@@ -196,7 +198,7 @@ void setup()
     EEPROM.write(displacementAddress1, 255);
     EEPROM.write(displacementAddress2, 255);
     setTime(currentHour, currentMinute, currentSecond, currentDay, currentMonth, currentYear);
-    RTC.set(now());
+    Teensy3Clock.set(now());
   }
   // load values from EEPROM if they have been changed from default, otherwise, defaults will be used
   if (EEPROM.read(lcdContrastAddress) < 255)
@@ -237,7 +239,7 @@ void setup()
   }
   
   // set the internal clock from the RTC
-  setSyncProvider(RTC.get);
+  setSyncProvider(getTeensy3Time);
   // set time to default if RTC not set
   if (timeStatus() != timeSet)
   {
@@ -247,14 +249,11 @@ void setup()
   // setup digital pins
   pinMode(switchPin, INPUT_PULLUP); // enable internal pullup for encoder switch pin
   pinMode(tachPin, INPUT_PULLUP); // enable internal pullup for tach pin
-  pinMode(lcdContrastPin, OUTPUT); // set lcdContrastPin as OUTPUT
   pinMode(lcdLEDRedPin, OUTPUT); // set lcdLEDRedPin as OUTPUT
   pinMode(lcdLEDGreenPin, OUTPUT); // set lcdLEDGreenPin as OUTPUT
   pinMode(lcdLEDBluePin, OUTPUT); // set lcdLEDBluePin as OUTPUT
   
   lcd.begin(16, 2); // setup lcd with 16 columns, 2 rows
-   
-  TCCR2B = TCCR2B & 0b11111000 | 0x01; // sets Timer 2 PWM frequency to 31372.55 Hz (affects digital pins 9 (LCD Contrast) and 10 (unused))
   
   // update LCD display values
   setRGBFromHue();
@@ -269,7 +268,7 @@ void setup()
   sensors.setResolution(transTempDigital, 9);
   sensors.requestTemperatures(); // run first temperature conversion on all sensors
   
-  attachInterrupt(switchInterrupt, pressButton, FALLING); // attach interrupt to encoder switch pin to listen for switch presses
+  attachInterrupt(switchPin, pressButton, FALLING); // attach interrupt to encoder switch pin to listen for switch presses
   
   modeSwitch.write(mode * 4); // write initial mode to Encoder
 }
@@ -674,14 +673,14 @@ void loop()
       setTime(instantHour, instantMinute, instantSecond, instantDay, instantMonth, instantYear);
       displayInfo(modeClock);
     }
-    RTC.set(now()); // update DS1307 RTC with new Time
+    Teensy3Clock.set(now()); // update Teensy RTC with new Time
     buttonPressed = false;
     lcd.clear();
     modeSwitch.write(mode * 4); // write current mode back to Encoder
   }
   
   // switch temp and pressure units
-  else if ((mode==modeCoolantTemp || mode==modeInsideTemp || mode==modeOutsideTemp || mode==modeTransTemp || mode==modeOilTemp || mode==modeIntakeTemp || mode==modeOilPress || mode==modeIntakePress) && buttonPressed==true)
+  else if ((mode==modeCoolantTemp || mode==modeInsideTemp || mode==modeOutsideTemp || mode==modeTransTemp || mode==modeOilTemp || mode==modeIntakeTemp || mode==modeOilPress || mode==modeIntakePress || mode==modeMAFR) && buttonPressed==true)
   {
     previousMillis = 0; // forces an immediate value update
     buttonPressed = false; 
@@ -699,36 +698,40 @@ void loop()
   // if no button pressed, read Encoder and change modes
   else
   {
-    mode = modeSwitch.read() / 4; // read encoder position and set mode
-    // loop around to first mode if reached the end
-    if (mode > modeMax)
+    int modeSwitchPosition = modeSwitch.read();
+    if(modeSwitchPosition % 4 == 0)
     {
-      mode = modeMin;
-      modeSwitch.write(mode * 4);
-    }
-    // loop around to end mode if reached the beginning
-    else if (mode < modeMin)
-    {
-      mode = modeMax;
-      modeSwitch.write(mode * 4);
-    }
-    // check to see if new display mode is selected
-    if(mode != previousMode)
-    {
-      previousMillis = 0; // this will force immediate refresh instead of waiting for normal sensor update interval
-      previousMode = mode; // store new previous mode
-      lcd.clear();
-      // start or stop counting interrupts for engine speed
-      // only count interrrupts while showing the tach
-      if(mode == modeTach)
+      mode = modeSwitchPosition / 4; // read encoder position and set mode
+      // loop around to first mode if reached the end
+      if (mode > modeMax)
       {
-        attachInterrupt(tachInterrupt, countRPM, FALLING);
+        mode = modeMin;
+        modeSwitch.write(mode * 4);
       }
-      else
+      // loop around to end mode if reached the beginning
+      else if (mode < modeMin)
       {
-        detachInterrupt(tachInterrupt);
-      }     
-      buttonPressed = false; // reset momentary button in case it was not
+        mode = modeMax;
+        modeSwitch.write(mode * 4);
+      }
+      // check to see if new display mode is selected
+      if(mode != previousMode)
+      {
+        previousMillis = 0; // this will force immediate refresh instead of waiting for normal sensor update interval
+        previousMode = mode; // store new previous mode
+        lcd.clear();
+        // start or stop counting interrupts for engine speed
+        // only count interrrupts while showing the tach
+        if(mode == modeTach || mode == modeMAFR)
+        {
+          attachInterrupt(tachPin, countRPM, FALLING);
+        }
+        else
+        {
+          detachInterrupt(tachPin);
+        }     
+        buttonPressed = false; // reset momentary button in case it was not
+      }
     }
   }
   
@@ -748,6 +751,11 @@ void loop()
       displayInfo(mode);
     }
   }
+}
+
+time_t getTeensy3Time()
+{
+  return Teensy3Clock.get();
 }
 
 // runs color conversion algorithm to set individual RGB values from single Hue value
@@ -979,7 +987,7 @@ float getMAFR()
   float coolantTempAbsolute = getCoolantTemp() + 273.15; // coolant temp in Kelvin
   float intakePressureAbsolute = (getIntakePress() + 14.7) * 0.06895; // intake pressure in bar (absolute)
   float airDensity = intakePressureAbsolute * 29.0 / 8.314e-2 / (0.5 * intakeTempAbsolute + 0.5 * coolantTempAbsolute); // calculate air density in g/L. Relative weightings of intake and engine temperature will change with engine speed. Assumed constant 50/50 for now
-  float MAFR = currentRPM * displacement / 61.024 / 2.0 * VE * airDensity / 60.0; // calculate MAFR in g/s
+  float MAFR = currentRPM * displacement / 61.024 / 2.0 * VE * airDensity / 1000; // calculate MAFR in kg/min
   return MAFR;
 }
 
@@ -1621,10 +1629,13 @@ void displayInfo(byte displayMode)
       float currentMAFR = getMAFR();
       if (!useSI)
       {
-        currentMAFR *= 0.1323; // convert to lb/min
+        currentMAFR *= 2.205; // convert to lb/min
       }
-      lcd.setCursor(5, 1);
-	  
+      lcd.setCursor(5, 1);  
+      if (currentMAFR < 10)
+      {
+        lcd.print(" ");
+      }
       lcd.print(currentMAFR, 1);
       if (!useSI)
       {
@@ -1632,7 +1643,7 @@ void displayInfo(byte displayMode)
       }
       else
       {
-        lcd.print(" g/s   ");
+        lcd.print(" kg/min");
       }
       break;
     }
@@ -2095,6 +2106,33 @@ void displayInfoLarge(byte displayMode)
           lcd.print(" ");
         }
         lcd.print("-");
+      }
+      break;
+    }
+    case modeMAFR:
+    {
+      lcd.setCursor(11, 0);
+      lcd.print("MAFR");
+      float currentMAFR = getMAFR();
+      if (!useSI)
+      {
+        currentMAFR *= 2.205; // convert to lb/min
+      }
+      currentMAFR *= 10;
+      int currentMAFRInt = int(currentMAFR + 0.5);
+      byte lastDigit = currentMAFRInt % 10;
+      currentMAFRInt /= 10;
+      bigNum.displayLargeInt(currentMAFRInt, 0, 2, false);
+      lcd.setCursor(6, 1);
+      lcd.print(".");
+      lcd.print(lastDigit);  
+      if (!useSI)
+      {
+        lcd.print("  lb/min");
+      }
+      else
+      {
+        lcd.print("  kg/min");
       }
       break;
     }
