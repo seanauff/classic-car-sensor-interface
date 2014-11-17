@@ -79,6 +79,7 @@ const byte AFRatioPin = A5; // pin for LSU 4.9 O2 sensor controller linear outpu
 const byte intakePressPin = A6; // pin for intake manifold pressure (vac or boost)
 
 // analog input setup
+const float aRef = 5.0; // analog reference for board
 const float regVoltage = 5.0; // instrument unit voltage regulator output (Volts)
 const float oilGaugeOhms = 13.0; // resistance of oil pressure gauge (ohms)
 const float fuelGaugeOhms = 13.0; // resistance of fuel level gauge (ohms)
@@ -128,7 +129,7 @@ const byte modeSystemSetup = 16;
 // hidden modes - not in normal rotation (inside menus, etc.)
 const byte modeDisplacement = 91;
 const byte modeRefreshInterval = 92;
-const byte modeUseCelcius = 93;
+const byte modeUseSI = 93;
 const byte modeEngineCylinders = 94;
 const byte modeLCDColor = 95;
 const byte modeBigFont = 96;
@@ -138,6 +139,7 @@ const byte modeLCDAutoDim = 99;
 
 byte mode = modeClock; // mode to start in
 byte previousMode = mode; // keep track of last mode to know when the mode changes to enable an immediate screen update
+int modeSwitchPosition; // temporary variable for storing the position of the encoder
 
 // LCD setup
 LiquidCrystalFast lcd(lcdRSPin, lcdRWPin, lcdEPin, lcdD4Pin, lcdD5Pin, lcdD6Pin, lcdD7Pin);
@@ -161,7 +163,7 @@ byte currentDay = 1;
 int currentYear = 2014;
 
 // default personalization values (changes stored in EEPROM)
-byte useSI = 0; // unit selector: 0 = English, 1 = SI
+byte useSI = 0; // unit selector: 0 = SAE, 1 = SI
 byte lcdAutoDim = 0; // automatic brightness adjust: 0 = OFF, 1 = ON
 byte lcdBigFont = 1; // Big Font: 0 = OFF, 1 = ON
 byte engineCylinders = 8; // for tach calculation (pulses per revolution = cylinders / 2)
@@ -413,7 +415,7 @@ void loop()
       lcdBigFont = modeSwitch.read() / 4;
       if(lcdBigFont > 1)
       {
-        lcdBigFont = 1;
+        lcdBigFont = 0;
         modeSwitch.write(lcdBigFont * 4);
       }
       else if (lcdBigFont < 0)
@@ -424,7 +426,7 @@ void loop()
       displayInfo(modeBigFont);
     }
     // store new value in EEPROM if it changed
-    if (lcdBigFont != lcdBigFont)
+    if (lcdBigFont != previousBigFont)
     {
       EEPROM.write(lcdBigFontAddress, lcdBigFont);
     }
@@ -508,7 +510,7 @@ void loop()
         useSI = 1;
         modeSwitch.write(useSI * 4);
       }
-      displayInfo(modeUseCelcius);
+      displayInfo(modeUseSI);
     }
     // store new value in EEPROM if it changed
     if (useSI != previousUseSI)
@@ -689,7 +691,7 @@ void loop()
     {
       useSI = 1;
     }
-    else if (useSI = 1)
+    else
     {
       useSI = 0;
     }
@@ -699,7 +701,7 @@ void loop()
   // if no button pressed, read Encoder and change modes
   else
   {
-    int modeSwitchPosition = modeSwitch.read();
+    modeSwitchPosition = modeSwitch.read();
     if(modeSwitchPosition % 4 == 0)
     {
       mode = modeSwitchPosition / 4; // read encoder position and set mode
@@ -722,14 +724,14 @@ void loop()
         previousMode = mode; // store new previous mode
         lcd.clear();
         // start or stop counting interrupts for engine speed
-        // only count interrrupts while showing the tach
+        // only count interrrupts while showing the tach or MAFR
         if(mode == modeTach || mode == modeMAFR)
         {
-          attachInterrupt(tachPin, countRPM, FALLING);
+          attachInterrupt(tachInterrupt, countRPM, FALLING);
         }
         else
         {
-          detachInterrupt(tachPin);
+          detachInterrupt(tachInterrupt);
         }     
         buttonPressed = false; // reset momentary button in case it was not
       }
@@ -839,7 +841,7 @@ float getBattVoltage()
   }
   val += 5; // allows proper rounding due to using integer math
   val /= 10; // get average value
-  float Vout = (val / 1023.0) * 5.0; // convert 10-bit value to Voltage
+  float Vout = (val / 1023.0) * aRef; // convert 10-bit value to Voltage
   float Vin = Vout * (R1 + R2) / R2; // solve for input Voltage
   return Vin; // return calculated input Voltage
 }
@@ -860,7 +862,7 @@ float getOilPress()
   }
   val += 5; // allows proper rounding due to using integer math
   val /= 10; // get average value
-  float Vout = val / 1023.0 * 5.0; // convert 10-bit value to Voltage
+  float Vout = val / 1023.0 * aRef; // convert 10-bit value to Voltage
   float VI = Vout * (R1 + R2) / R2; // solve for input Voltage
   float Rsender = VI * oilGaugeOhms / (regVoltage - VI); // solve for sensor resistance
   float pressure = 140.75 - 1.0199 * Rsender + 0.0018 * Rsender * Rsender; // solve for pressure based on calibration curve
@@ -884,7 +886,7 @@ float getFuelLevel()
   }
   val += 5; // allows proper rounding due to using integer math
   val /= 10; // get average value
-  float Vout = val / 1023.0 * 5.0; // convert 10-bit value to Voltage
+  float Vout = val / 1023.0 * aRef; // convert 10-bit value to Voltage
   float VI = Vout * (R1 + R2) / R2; // solve for input Voltage
   float Rsender = VI * fuelGaugeOhms / (regVoltage - VI); // solve for sensor resistance
   float level = 108.4 - 0.56 * Rsender; // solve for fuel level based on calibration curve
@@ -909,7 +911,7 @@ float getCoolantTemp()
   val += 5; // allows proper rounding due to using integer math
   val /= 10; // get average value
   val = max(val, 1); // dont let val be 0, which would give infinite temp
-  float Vout = val / 1023.0 * 5.0; // convert 10-bit value to Voltage
+  float Vout = val / 1023.0 * aRef; // convert 10-bit value to Voltage
   float VI = Vout * (R1 + R2) / R2; // solve for input Voltage
   float Rsender = VI * coolantGaugeOhms / (regVoltage - VI); // solve for sensor resistance
   float temp = pow(SHparamA + SHparamB * log(Rsender) + SHparamC * pow(log(Rsender), 3), -1) - 273.15; // solve for temperature based on calibration curve based on Steinhart–Hart equation
@@ -948,7 +950,7 @@ float getIntakePress()
   }
   val += 5; // allows proper rounding due to using integer math
   val /= 10; // get average value
-  float volts = val / 1023.0 * 5.0;
+  float volts = val / 1023.0 * aRef;
   float pressure = 0;
   if (volts <= 1.0)
   {
@@ -979,6 +981,7 @@ float getMAFR()
 {
   int currentRPM = getRPM();
   float VE = 0.9; // volumetric efficiency (dependent on intake pressure and engine speed, assumed constant for now)
+  sensors.requestTemperatures();
   float intakeTempAbsolute = sensors.getTempC(intakeTempDigital) + 273.15; // intake temp in Kelvin
   float coolantTempAbsolute = getCoolantTemp() + 273.15; // coolant temp in Kelvin
   float intakePressureAbsolute = (getIntakePress() + 14.7) * 0.06895; // intake pressure in bar (absolute)
@@ -1011,6 +1014,150 @@ void displayInfo(byte displayMode)
 {
   switch (displayMode)
   {
+    case modeClock: // Clock
+    {
+      
+      time_t currentTime = now(); // store current time as time_t
+      currentHour = hourFormat12(currentTime);
+      currentMinute = minute(currentTime);
+      currentMonth = month(currentTime);
+      currentDay = day(currentTime);
+      currentYear = year(currentTime);
+      byte currentDayOfWeek = weekday(currentTime);
+      lcd.setCursor(4, 0);
+      if(currentHour < 10)
+      {
+        lcd.print(" ");
+      }
+      lcd.print(currentHour);
+      lcd.print(":");
+      if(currentMinute < 10)
+      {
+        lcd.print("0");
+      }
+      lcd.print(currentMinute);
+      lcd.print(" ");
+      if(isAM())
+      {
+        lcd.print("AM");
+      }
+      else
+      {
+        lcd.print("PM");
+      }
+      lcd.setCursor(0, 1);
+      switch (currentDayOfWeek)
+      {
+        case 1:
+        {
+          lcd.print("Sun");
+          break;
+        }
+        case 2:
+        {
+          lcd.print("Mon");
+          break;
+        }
+        case 3:
+        {
+          lcd.print("Tue");
+          break;
+        }
+        case 4:
+        {
+          lcd.print("Wed");
+          break;
+        }
+        case 5:
+        {
+          lcd.print("Thu");
+          break;
+        }
+        case 6:
+        {
+          lcd.print("Fri");
+          break;
+        }
+        case 7:
+        {
+          lcd.print("Sat");
+          break;
+        }
+      }
+      lcd.print(" ");
+      switch (currentMonth)
+      {
+        case 1:
+        {
+          lcd.print("Jan");
+          break;
+        }
+        case 2:
+        {
+          lcd.print("Feb");
+          break;
+        }
+        case 3:
+        {
+          lcd.print("Mar");
+          break;
+        }
+        case 4:
+        {
+          lcd.print("Apr");
+          break;
+        }
+        case 5:
+        {
+          lcd.print("May");
+          break;
+        }
+        case 6:
+        {
+          lcd.print("Jun");
+          break;
+        }
+        case 7:
+        {
+          lcd.print("Jul");
+          break;
+        }
+        case 8:
+        {
+          lcd.print("Aug");
+          break;
+        }
+        case 9:
+        {
+          lcd.print("Sep");
+          break;
+        }
+        case 10:
+        {
+          lcd.print("Oct");
+          break;
+        }
+        case 11:
+        {
+          lcd.print("Nov");
+          break;
+        }
+        case 12:
+        {
+          lcd.print("Dec");
+          break;
+        }
+      }
+      lcd.print(" ");
+      if(currentDay < 10)
+      {
+        lcd.print(" ");
+      }
+      lcd.print(currentDay);
+      lcd.print(" ");
+      lcd.print(currentYear);
+      break;
+    }
     case modeBattVoltage: // battery voltage
     {
       lcd.setCursor(0, 0);
@@ -1233,28 +1380,6 @@ void displayInfo(byte displayMode)
       sensors.requestTemperatures();
       break;
     }
-    case modeTach: // engine speed
-    {
-      lcd.setCursor(2, 0);
-      lcd.print("Engine Speed");
-      int currentRPM = getRPM();
-      lcd.setCursor(4, 1);
-      if(currentRPM < 10)
-      {
-        lcd.print("   ");
-      }
-      else if(currentRPM < 100)
-      {
-        lcd.print("  ");
-      }
-      else if(currentRPM < 1000)
-      {
-        lcd.print(" ");
-      }
-      lcd.print(currentRPM);
-      lcd.print(" RPM");
-      break;
-    }
     case modeIntakeTemp: // intake temp
     {
       lcd.setCursor(2, 0);
@@ -1291,178 +1416,96 @@ void displayInfo(byte displayMode)
       sensors.requestTemperatures(); // request a temperature conversion
       break;
     }
-    case modeLCDSetup: // Display Settings
-    {
-      lcd.setCursor(4, 0);
-      lcd.print("Display");
-      lcd.setCursor(4, 1);
-      lcd.print("Settings");
-      break;
-    }
-    case modeSystemSetup: // System Settings
-    {
-      lcd.setCursor(5, 0);
-      lcd.print("System");
-      lcd.setCursor(4, 1);
-      lcd.print("Settings");
-      break;
-    }
-    case modeUseCelcius: // unit system
+    case modeTach: // engine speed
     {
       lcd.setCursor(2, 0);
-      lcd.print("Unit System");
+      lcd.print("Engine Speed");
+      int currentRPM = getRPM();
       lcd.setCursor(4, 1);
-      if(!useSI)
+      if(currentRPM < 10)
       {
-        lcd.print("English");
+        lcd.print("   ");
+      }
+      else if(currentRPM < 100)
+      {
+        lcd.print("  ");
+      }
+      else if(currentRPM < 1000)
+      {
+        lcd.print(" ");
+      }
+      lcd.print(currentRPM);
+      lcd.print(" RPM");
+      break;
+    }
+    case modeAFRatio:
+    {
+      lcd.setCursor(3, 0);
+      lcd.print("A/F Ratio");
+      float currentAFRatio = getLambda() * 14.7; // convert to Air/Fuel Mass Ratio (Air/Gasoline)
+      lcd.setCursor(6, 1);
+      lcd.print(currentAFRatio, 1);
+      break;
+    }
+    case modeIntakePress:
+    {
+      float currentIntakePress = getIntakePress();
+      if (useSI)
+      {
+        currentIntakePress *= 0.06895; // convert to bar
+      }
+      lcd.setCursor(5, 0);
+      if (currentIntakePress <= 0)
+      {
+        lcd.print("Vacuum");
       }
       else
       {
-        lcd.print("  SI   ");
+        lcd.print("Boost ");
+      }
+      lcd.setCursor(3, 1);
+      if (currentIntakePress < 10 && currentIntakePress >= 0)
+      {
+        lcd.print("  ");
+      }
+      else if ((currentIntakePress < 0 && currentIntakePress > -10) || currentIntakePress >= 10)
+      {
+        lcd.print(" ");
+      }
+      lcd.print(currentIntakePress, 1);
+      if (!useSI)
+      {
+        lcd.print(" psi");
+      }
+      else
+      {
+        lcd.print(" bar");
       }
       break;
     }
-    case modeClock: // Clock
+    case modeMAFR:
     {
-      time_t currentTime = now(); // store current time as time_t
-      currentHour = hourFormat12(currentTime);
-      currentMinute = minute(currentTime);
-      currentMonth = month(currentTime);
-      currentDay = day(currentTime);
-      currentYear = year(currentTime);
-      byte currentDayOfWeek = weekday(currentTime);
-      lcd.setCursor(4, 0);
-      if(currentHour < 10)
+      lcd.setCursor(1, 0);
+      lcd.print("Mass air flow");
+      float currentMAFR = getMAFR();
+      if (!useSI)
+      {
+        currentMAFR *= 2.205; // convert to lb/min
+      }
+      lcd.setCursor(5, 1);  
+      if (currentMAFR < 10)
       {
         lcd.print(" ");
       }
-      lcd.print(currentHour);
-      lcd.print(":");
-      if(currentMinute < 10)
+      lcd.print(currentMAFR, 1);
+      if (!useSI)
       {
-        lcd.print("0");
-      }
-      lcd.print(currentMinute);
-      lcd.print(" ");
-      if(isAM())
-      {
-        lcd.print("AM");
+        lcd.print(" lb/min");
       }
       else
       {
-        lcd.print("PM");
+        lcd.print(" kg/min");
       }
-      lcd.setCursor(0, 1);
-      switch (currentDayOfWeek)
-      {
-        case 1:
-        {
-          lcd.print("Sun");
-          break;
-        }
-        case 2:
-        {
-          lcd.print("Mon");
-          break;
-        }
-        case 3:
-        {
-          lcd.print("Tue");
-          break;
-        }
-        case 4:
-        {
-          lcd.print("Wed");
-          break;
-        }
-        case 5:
-        {
-          lcd.print("Thu");
-          break;
-        }
-        case 6:
-        {
-          lcd.print("Fri");
-          break;
-        }
-        case 7:
-        {
-          lcd.print("Sat");
-          break;
-        }
-      }
-      lcd.print(" ");
-      switch (currentMonth)
-      {
-        case 1:
-        {
-          lcd.print("Jan");
-          break;
-        }
-        case 2:
-        {
-          lcd.print("Feb");
-          break;
-        }
-        case 3:
-        {
-          lcd.print("Mar");
-          break;
-        }
-        case 4:
-        {
-          lcd.print("Apr");
-          break;
-        }
-        case 5:
-        {
-          lcd.print("May");
-          break;
-        }
-        case 6:
-        {
-          lcd.print("Jun");
-          break;
-        }
-        case 7:
-        {
-          lcd.print("Jul");
-          break;
-        }
-        case 8:
-        {
-          lcd.print("Aug");
-          break;
-        }
-        case 9:
-        {
-          lcd.print("Sep");
-          break;
-        }
-        case 10:
-        {
-          lcd.print("Oct");
-          break;
-        }
-        case 11:
-        {
-          lcd.print("Nov");
-          break;
-        }
-        case 12:
-        {
-          lcd.print("Dec");
-          break;
-        }
-      }
-      lcd.print(" ");
-      if(currentDay < 10)
-      {
-        lcd.print(" ");
-      }
-      lcd.print(currentDay);
-      lcd.print(" ");
-      lcd.print(currentYear);
       break;
     }
     case modeFuelLevel: //  Fuel Level
@@ -1481,6 +1524,73 @@ void displayInfo(byte displayMode)
       }
       lcd.print(fuelLevel, 0);
       lcd.print(" %");
+      break;
+    }
+    case modeLCDSetup: // Display Settings
+    {
+      lcd.setCursor(4, 0);
+      lcd.print("Display");
+      lcd.setCursor(4, 1);
+      lcd.print("Settings");
+      break;
+    }
+    case modeSystemSetup: // System Settings
+    {
+      lcd.setCursor(5, 0);
+      lcd.print("System");
+      lcd.setCursor(4, 1);
+      lcd.print("Settings");
+      break;
+    }
+    case modeDisplacement:
+    {
+      lcd.setCursor(2, 0);
+      lcd.print("Displacement");
+      lcd.setCursor(1, 1);
+      lcd.print(displacement);
+      lcd.print(" ci  ");
+      lcd.print(float(displacement) / 61.024, 2);
+      lcd.print(" L");
+      break;
+    }
+    case modeRefreshInterval:
+    {
+      lcd.setCursor(0, 0);
+      lcd.print("Update Interval");
+      lcd.setCursor(4, 1);
+      if(refreshInterval < 1000)
+      {
+        lcd.print(" ");
+      }
+      lcd.print(refreshInterval);
+      lcd.print(" ms");
+      break;
+    }
+    case modeUseSI: // unit system
+    {
+      lcd.setCursor(2, 0);
+      lcd.print("Unit System");
+      lcd.setCursor(6, 1);
+      if(!useSI)
+      {
+        lcd.print("SAE");
+      }
+      else
+      {
+        lcd.print(" SI");
+      }
+      break;
+    }
+    case modeEngineCylinders:
+    {
+      lcd.setCursor(0, 0);
+      lcd.print("Engine Cylinders");
+      lcd.setCursor(7, 1);
+      if (engineCylinders < 10)
+      {
+        lcd.print(" ");
+      }
+      lcd.print(engineCylinders);
       break;
     }
     case modeLCDColor:
@@ -1559,112 +1669,6 @@ void displayInfo(byte displayMode)
       {
         lcd.print(" ON");
       }
-      break;
-    }
-    case modeEngineCylinders:
-    {
-      lcd.setCursor(0, 0);
-      lcd.print("Engine Cylinders");
-      lcd.setCursor(7, 1);
-      if (engineCylinders < 10)
-      {
-        lcd.print(" ");
-      }
-      lcd.print(engineCylinders);
-      break;
-    }
-    case modeAFRatio:
-    {
-      lcd.setCursor(3, 0);
-      lcd.print("A/F Ratio");
-      float currentAFRatio = getLambda() * 14.7; // convert to Air/Fuel Mass Ratio (Air/Gasoline)
-      lcd.setCursor(6, 1);
-      lcd.print(currentAFRatio, 1);
-      break;
-    }
-    case modeIntakePress:
-    {
-      float currentIntakePress = getIntakePress();
-      if (useSI)
-      {
-        currentIntakePress *= 0.06895; // convert to bar
-      }
-      lcd.setCursor(5, 0);
-      if (currentIntakePress <= 0)
-      {
-        lcd.print("Vacuum");
-      }
-      else
-      {
-        lcd.print("Boost ");
-      }
-      lcd.setCursor(3, 1);
-      if (currentIntakePress < 10 && currentIntakePress >= 0)
-      {
-        lcd.print("  ");
-      }
-      else if ((currentIntakePress < 0 && currentIntakePress > -10) || currentIntakePress >= 10)
-      {
-        lcd.print(" ");
-      }
-      lcd.print(currentIntakePress, 1);
-      if (!useSI)
-      {
-        lcd.print(" psi");
-      }
-      else
-      {
-        lcd.print(" bar");
-      }
-      break;
-    }
-    case modeMAFR:
-    {
-      lcd.setCursor(1, 0);
-      lcd.print("Mass air flow");
-      float currentMAFR = getMAFR();
-      if (!useSI)
-      {
-        currentMAFR *= 2.205; // convert to lb/min
-      }
-      lcd.setCursor(5, 1);  
-      if (currentMAFR < 10)
-      {
-        lcd.print(" ");
-      }
-      lcd.print(currentMAFR, 1);
-      if (!useSI)
-      {
-        lcd.print(" lb/min");
-      }
-      else
-      {
-        lcd.print(" kg/min");
-      }
-      break;
-    }
-    case modeRefreshInterval:
-    {
-      lcd.setCursor(0, 0);
-      lcd.print("Update Interval");
-      lcd.setCursor(4, 1);
-      if(refreshInterval < 1000)
-      {
-        lcd.print(" ");
-      }
-      lcd.print(refreshInterval);
-      lcd.print(" ms");
-      break;
-    }
-    case modeDisplacement:
-    {
-      lcd.setCursor(2, 0);
-      lcd.print("Displacement");
-      lcd.setCursor(1, 1);
-      lcd.print(displacement);
-      lcd.print(" ci  ");
-      lcd.print(float(displacement) / 61.024, 2);
-      lcd.print(" L");
       break;
     }
   }
