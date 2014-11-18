@@ -161,6 +161,9 @@ byte currentSecond = 0;
 byte currentMonth = 1;
 byte currentDay = 1;
 int currentYear = 2014;
+// arrays to hold names of days of week and months of year
+char* daysOfWeek[] = {"Null", "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
+char* monthsOfYear[] = {"Null", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
 
 // default personalization values (changes stored in EEPROM)
 byte useSI = 0; // unit selector: 0 = SAE, 1 = SI
@@ -306,7 +309,7 @@ void loop()
       setRGBFromHue(); // determine new RGB values
       lcdBrightness = map((lcdLEDRed + lcdLEDGreen + lcdLEDBlue), 255, 510, 100, 50); // normalize brightness due to varying amounts of LEDs used
       writeLCDValues(); // write new values to LCD
-      displayInfo(modeLCDColor); // update display
+      displayInfo(modeLCDColor, lcdBigFont); // update display
     }
     // store new value in EEPROM if it changed
     if (lcdHue != previousHue)
@@ -340,7 +343,7 @@ void loop()
       }
       setAutoBrightness();
       writeLCDValues();
-      displayInfo(modeLCDAutoDim); 
+      displayInfo(modeLCDAutoDim, lcdBigFont); 
     }
     // store new value in EEPROM if it changed
     if (lcdAutoDim != previousAutoDim)
@@ -369,7 +372,7 @@ void loop()
         modeSwitch.write(lcdBrightness * 4);
       }
       writeLCDValues();
-      displayInfo(modeLCDBrightness);
+      displayInfo(modeLCDBrightness, lcdBigFont);
     }
     // store new value in EEPROM if it changed
     if(lcdBrightness != previousBrightness)
@@ -397,7 +400,7 @@ void loop()
         modeSwitch.write(lcdContrast * 4);
       }
       writeLCDValues();
-      displayInfo(modeLCDContrast);
+      displayInfo(modeLCDContrast, lcdBigFont);
     }
     // store new value in EEPROM if it changed
     if (lcdContrast != previousContrast)
@@ -423,7 +426,7 @@ void loop()
         lcdBigFont = 1;
         modeSwitch.write(lcdBigFont * 4);
       }
-      displayInfo(modeBigFont);
+      displayInfo(modeBigFont, lcdBigFont);
     }
     // store new value in EEPROM if it changed
     if (lcdBigFont != previousBigFont)
@@ -456,7 +459,7 @@ void loop()
         engineCylinders = 16;
         modeSwitch.write((engineCylinders / 2) * 4);
       }
-      displayInfo(modeEngineCylinders);
+      displayInfo(modeEngineCylinders, lcdBigFont);
     }
     // store new value in EEPROM if it changed
     if (engineCylinders != previousCylinders)
@@ -482,7 +485,7 @@ void loop()
         displacement = 599;
         modeSwitch.write(displacement * 4);
       }
-      displayInfo(modeDisplacement);
+      displayInfo(modeDisplacement, lcdBigFont);
     }
     // store new value in EEPROM if it changed
     if (displacement != previousDisplacement)
@@ -510,7 +513,7 @@ void loop()
         useSI = 1;
         modeSwitch.write(useSI * 4);
       }
-      displayInfo(modeUseSI);
+      displayInfo(modeUseSI, lcdBigFont);
     }
     // store new value in EEPROM if it changed
     if (useSI != previousUseSI)
@@ -535,7 +538,7 @@ void loop()
         refreshInterval = 1500;
         modeSwitch.write((refreshInterval / 50) * 4);
       }
-      displayInfo(modeRefreshInterval);
+      displayInfo(modeRefreshInterval, lcdBigFont);
     }
     // store new value in EEPROM if it changed
     if (refreshInterval != previousRefreshInterval)
@@ -578,7 +581,7 @@ void loop()
         modeSwitch.write(instantHour * 4);
       }
       setTime(instantHour, instantMinute, instantSecond, instantDay, instantMonth, instantYear);
-      displayInfo(modeClock);
+      displayInfo(modeClock, false);
     }
     buttonPressed = false;
     // set Minute
@@ -602,7 +605,7 @@ void loop()
         modeSwitch.write(instantMinute * 4);
       }
       setTime(instantHour, instantMinute, instantSecond, instantDay, instantMonth, instantYear);
-      displayInfo(modeClock);
+      displayInfo(modeClock, false);
     }
     buttonPressed = false;
     // set Month
@@ -626,7 +629,7 @@ void loop()
         modeSwitch.write(instantMonth * 4);
       }
       setTime(instantHour, instantMinute, instantSecond, instantDay, instantMonth, instantYear);
-      displayInfo(modeClock);
+      displayInfo(modeClock, false);
     }
     buttonPressed = false;
     // set Day
@@ -650,7 +653,7 @@ void loop()
         modeSwitch.write(instantDay * 4);
       }
       setTime(instantHour, instantMinute, instantSecond, instantDay, instantMonth, instantYear);
-      displayInfo(modeClock);
+      displayInfo(modeClock, false);
     }
     buttonPressed = false;
     // set Year
@@ -674,7 +677,7 @@ void loop()
         modeSwitch.write(instantYear * 4);
       }
       setTime(instantHour, instantMinute, instantSecond, instantDay, instantMonth, instantYear);
-      displayInfo(modeClock);
+      displayInfo(modeClock, false);
     }
     RTC.set(now()); // update DS1307 RTC with new Time
     buttonPressed = false;
@@ -745,14 +748,7 @@ void loop()
     setAutoBrightness(); 
     writeLCDValues(); // write LCD values
     // display info depending on mode and font size
-    if(lcdBigFont)
-    {
-      displayInfoLarge(mode);
-    }
-    else
-    {
-      displayInfo(mode);
-    }
+    displayInfo(mode, lcdBigFont);
   }
 }
 
@@ -975,7 +971,7 @@ int getRPM()
 }
 
 // gets data needed to calculate mass (air) flow rate: intake temp, intake pressure, RPM, engine displacement
-// returns mass (air) flow rate in g/s
+// returns mass (air) flow rate in kg/min
 // Resolution:
 float getMAFR()
 {
@@ -1009,14 +1005,15 @@ void pressButton()
   }
 }
 
-// collects and displays sensor data using small font
-void displayInfo(byte displayMode)
+// collects and displays sensor data on the LCD
+// byte displayMode: the mode to display
+// boolean bigFont: sets if small or large font is used
+void displayInfo(byte displayMode, boolean bigFont)
 {
   switch (displayMode)
   {
     case modeClock: // Clock
     {
-      
       time_t currentTime = now(); // store current time as time_t
       currentHour = hourFormat12(currentTime);
       currentMinute = minute(currentTime);
@@ -1024,427 +1021,676 @@ void displayInfo(byte displayMode)
       currentDay = day(currentTime);
       currentYear = year(currentTime);
       byte currentDayOfWeek = weekday(currentTime);
-      lcd.setCursor(4, 0);
-      if(currentHour < 10)
+      if (bigFont)
       {
-        lcd.print(" ");
-      }
-      lcd.print(currentHour);
-      lcd.print(":");
-      if(currentMinute < 10)
-      {
-        lcd.print("0");
-      }
-      lcd.print(currentMinute);
-      lcd.print(" ");
-      if(isAM())
-      {
-        lcd.print("AM");
+        bigNum.displayLargeInt(currentHour, 0 , 2, false);
+        lcd.setCursor(6, 0);
+        lcd.write(165); // dot symbol
+        lcd.setCursor(6, 1);
+        lcd.write(165); // dot symbol
+        bigNum.displayLargeInt(currentMinute, 7, 2, true);
+        lcd.setCursor(14, 1);
+        if(isAM())
+        {
+          lcd.write(65); // "A"
+        }
+        else
+        {
+          lcd.write(80); // "P"
+        }
+        lcd.write(77); // "M"
       }
       else
       {
-        lcd.print("PM");
-      }
-      lcd.setCursor(0, 1);
-      switch (currentDayOfWeek)
-      {
-        case 1:
+        lcd.setCursor(4, 0);
+        if(currentHour < 10)
         {
-          lcd.print("Sun");
-          break;
+          lcd.print(" ");
         }
-        case 2:
+        lcd.print(currentHour);
+        lcd.print(":");
+        if(currentMinute < 10)
         {
-          lcd.print("Mon");
-          break;
+          lcd.print("0");
         }
-        case 3:
-        {
-          lcd.print("Tue");
-          break;
-        }
-        case 4:
-        {
-          lcd.print("Wed");
-          break;
-        }
-        case 5:
-        {
-          lcd.print("Thu");
-          break;
-        }
-        case 6:
-        {
-          lcd.print("Fri");
-          break;
-        }
-        case 7:
-        {
-          lcd.print("Sat");
-          break;
-        }
-      }
-      lcd.print(" ");
-      switch (currentMonth)
-      {
-        case 1:
-        {
-          lcd.print("Jan");
-          break;
-        }
-        case 2:
-        {
-          lcd.print("Feb");
-          break;
-        }
-        case 3:
-        {
-          lcd.print("Mar");
-          break;
-        }
-        case 4:
-        {
-          lcd.print("Apr");
-          break;
-        }
-        case 5:
-        {
-          lcd.print("May");
-          break;
-        }
-        case 6:
-        {
-          lcd.print("Jun");
-          break;
-        }
-        case 7:
-        {
-          lcd.print("Jul");
-          break;
-        }
-        case 8:
-        {
-          lcd.print("Aug");
-          break;
-        }
-        case 9:
-        {
-          lcd.print("Sep");
-          break;
-        }
-        case 10:
-        {
-          lcd.print("Oct");
-          break;
-        }
-        case 11:
-        {
-          lcd.print("Nov");
-          break;
-        }
-        case 12:
-        {
-          lcd.print("Dec");
-          break;
-        }
-      }
-      lcd.print(" ");
-      if(currentDay < 10)
-      {
+        lcd.print(currentMinute);
         lcd.print(" ");
+        if(isAM())
+        {
+          lcd.write(65); // "A"
+        }
+        else
+        {
+          lcd.write(80); // "P"
+        }
+        lcd.write(77); // "M"
+        lcd.setCursor(0, 1);
+        lcd.print(daysOfWeek[currentDayOfWeek]);
+        lcd.print(" ");
+        lcd.print(monthsOfYear[currentMonth]);
+        lcd.print(" ");
+        if(currentDay < 10)
+        {
+          lcd.print(" ");
+        }
+        lcd.print(currentDay);
+        lcd.print(" ");
+        lcd.print(currentYear);
       }
-      lcd.print(currentDay);
-      lcd.print(" ");
-      lcd.print(currentYear);
       break;
     }
     case modeBattVoltage: // battery voltage
     {
-      lcd.setCursor(0, 0);
-      lcd.print("Battery Voltage");
       float battVoltage = getBattVoltage();
-      lcd.setCursor(5, 1);
-      if (battVoltage < 10)
+      if (bigFont)
       {
-        lcd.print(" ");
+        battVoltage *= 10;
+        int battVoltageInt = int(battVoltage + 0.5);
+        byte lastDigit = battVoltageInt % 10;
+        battVoltageInt /= 10;
+        bigNum.displayLargeInt(battVoltageInt, 0, 2, false);
+        lcd.setCursor(9, 0);
+        lcd.print("Battery");
+        lcd.setCursor(6, 1);
+        lcd.print(".");
+        lcd.print(lastDigit);
+        lcd.print(" Volts");
       }
-      lcd.print(battVoltage, 1);
-      lcd.print(" V");
+      else
+      {
+        lcd.setCursor(0, 0);
+        lcd.print("Battery Voltage");
+        lcd.setCursor(5, 1);
+        if (battVoltage < 10)
+        {
+          lcd.print(" ");
+        }
+        lcd.print(battVoltage, 1);
+        lcd.print(" V");
+      }
       break;
     }
     case modeOilPress: // oil pressure
     {
-      lcd.setCursor(2, 0);
-      lcd.print("Oil Pressure");
       float oilPressure = getOilPress();
       if (useSI)
       {
         oilPressure *= 0.06895; // convert to bar
       }
-      lcd.setCursor(3, 1);
-      if(oilPressure < 10)
+      if (bigFont)
       {
-        lcd.print("  ");
-      }
-      else if(oilPressure < 100)
-      {
-        lcd.print(" ");
-      }
-      lcd.print(oilPressure, 1);
-      if (useSI)
-      {
-        lcd.print(" bar");
+        oilPressure *= 10;
+        int oilPressureInt = int(oilPressure + 0.5);
+        byte lastDigit = oilPressureInt % 10;
+        oilPressureInt /= 10;
+        bigNum.displayLargeInt(oilPressureInt, 0, 3, false);
+        lcd.setCursor(12, 0);
+        lcd.print("Oil");
+        lcd.setCursor(9, 1);
+        lcd.print(".");
+        lcd.print(lastDigit);
+        if (useSI)
+        {
+          lcd.print(" bar");
+        }
+        else
+        {
+          lcd.print(" psi");
+        }
       }
       else
       {
-        lcd.print(" psi");
+        lcd.setCursor(2, 0);
+        lcd.print("Oil Pressure");
+        lcd.setCursor(3, 1);
+        if(oilPressure < 10)
+        {
+          lcd.print("  ");
+        }
+        else if(oilPressure < 100)
+        {
+          lcd.print(" ");
+        }
+        lcd.print(oilPressure, 1);
+        if (useSI)
+        {
+          lcd.print(" bar");
+        }
+        else
+        {
+          lcd.print(" psi");
+        }
       }
       break;
     }
     case modeCoolantTemp: // coolant temp
     {
-      lcd.setCursor(2, 0);
-      lcd.print("Coolant Temp");
       float currentTemp = getCoolantTemp();
       if (!useSI)
       {
         currentTemp = currentTemp * 9.0 / 5.0 + 32.0; // convert to deg F
       }
-      lcd.setCursor(4, 1);
-      if (currentTemp < 10 && currentTemp >= 0)
+      if (bigFont)
       {
-        lcd.print("   ");
-      }
-      else if ((currentTemp < 100 && currentTemp >= 10) || (currentTemp < 0 && currentTemp > -10))
-      {
-        lcd.print("  ");
-      }
-      else if (currentTemp >= 100 || (currentTemp <= -10 && currentTemp > -100))
-      {
-        lcd.print(" ");
-      }
-      lcd.print(currentTemp, 0);
-      lcd.print(" ");
-      lcd.write(char(223)); // degree symbol
-      if (!useSI)
-      {
-        lcd.write(70); // "F"
+        boolean isNegative = false;
+        if(currentTemp < 0)
+        {
+          isNegative = true;
+          currentTemp = abs(currentTemp);
+        }
+        int currentTempInt = int(currentTemp + 0.5);
+        bigNum.displayLargeInt(currentTempInt, 0, 3, false);
+        lcd.setCursor(10, 0);
+        lcd.print("Engine");
+        lcd.setCursor(10, 1);
+        lcd.write(char(223));
+        if (!useSI)
+        {
+          lcd.write(70); // "F"
+        }
+        else
+        {
+          lcd.write(67); // "C"
+        }
+        if (isNegative)
+        {
+          lcd.setCursor(0, 0);
+          if (currentTemp < 10)
+          {
+            lcd.print("    ");
+          }
+          else if (currentTemp < 20)
+          {
+            lcd.print("   ");
+          }
+          else if (currentTemp < 100)
+          {
+            lcd.print(" ");
+          }
+          lcd.print("-");
+        }
       }
       else
       {
-        lcd.write(67); // "C"
+        lcd.setCursor(2, 0);
+        lcd.print("Coolant Temp");
+        lcd.setCursor(4, 1);
+        if (currentTemp < 10 && currentTemp >= 0)
+        {
+          lcd.print("   ");
+        }
+        else if ((currentTemp < 100 && currentTemp >= 10) || (currentTemp < 0 && currentTemp > -10))
+        {
+          lcd.print("  ");
+        }
+        else if (currentTemp >= 100 || (currentTemp <= -10 && currentTemp > -100))
+        {
+          lcd.print(" ");
+        }
+        lcd.print(currentTemp, 0);
+        lcd.print(" ");
+        lcd.write(char(223)); // degree symbol
+        if (!useSI)
+        {
+          lcd.write(70); // "F"
+        }
+        else
+        {
+          lcd.write(67); // "C"
+        }
       }
       break;
     }
     case modeOutsideTemp: // outside temp
     {
-      lcd.setCursor(2, 0);
-      lcd.print("Outside Temp");
       float currentTemp = sensors.getTempC(outsideTempDigital);
       if (!useSI)
       {
-        currentTemp = currentTemp * 9.0 / 5.0 + 32.0; // convert to deg F
+        currentTemp = currentTemp * 9.0 / 5.0 + 32.0; // comvert to deg F
       }
-      lcd.setCursor(4, 1);
-      if (currentTemp < 10 && currentTemp >= 0)
-      {
-        lcd.print("   ");
-      }
-      else if ((currentTemp < 100 && currentTemp >= 10) || (currentTemp < 0 && currentTemp > -10))
-      {
-        lcd.print("  ");
-      }
-      else if (currentTemp >= 100 || (currentTemp <= -10 && currentTemp > -100))
-      {
-        lcd.print(" ");
-      }
-      lcd.print(currentTemp, 0);
-      lcd.print(" ");
-      lcd.write(char(223)); // degree symbol
-      if (!useSI)
-      {
-        lcd.write(70); // "F"
+      if (bigFont)
+      { 
+        boolean isNegative = false;
+        if(currentTemp < 0)
+        {
+          isNegative = true;
+          currentTemp = abs(currentTemp);
+        }
+        int currentTempInt = int(currentTemp + 0.5);
+        bigNum.displayLargeInt(currentTempInt, 0, 3, false);
+        lcd.setCursor(10, 0);
+        lcd.print("Out");
+        lcd.setCursor(10, 1);
+        lcd.write(char(223));
+        if (!useSI)
+        {
+          lcd.write(70); // "F"
+        }
+        else
+        {
+          lcd.write(67); // "C"
+        }
+        if (isNegative)
+        {
+          lcd.setCursor(0, 0);
+          if (currentTemp < 10)
+          {
+            lcd.print("    ");
+          }
+          else if (currentTemp < 20)
+          {
+            lcd.print("   ");
+          }
+          else if (currentTemp < 100)
+          {
+            lcd.print(" ");
+          }
+          lcd.print("-");
+        }
       }
       else
       {
-        lcd.write(67); // "C"
+        lcd.setCursor(2, 0);
+        lcd.print("Outside Temp");
+        lcd.setCursor(4, 1);
+        if (currentTemp < 10 && currentTemp >= 0)
+        {
+          lcd.print("   ");
+        }
+        else if ((currentTemp < 100 && currentTemp >= 10) || (currentTemp < 0 && currentTemp > -10))
+        {
+          lcd.print("  ");
+        }
+        else if (currentTemp >= 100 || (currentTemp <= -10 && currentTemp > -100))
+        {
+          lcd.print(" ");
+        }
+        lcd.print(currentTemp, 0);
+        lcd.print(" ");
+        lcd.write(char(223)); // degree symbol
+        if (!useSI)
+        {
+          lcd.write(70); // "F"
+        }
+        else
+        {
+          lcd.write(67); // "C"
+        }
       }
       sensors.requestTemperatures(); // request a temperature conversion
       break;
     }
     case modeInsideTemp: // inside temp
     {
-      lcd.setCursor(2, 0);
-      lcd.print("Inside Temp");
       float currentTemp = sensors.getTempC(insideTempDigital);
       if (!useSI)
       {
-        currentTemp = currentTemp * 9.0 / 5.0 + 32.0; // convert to deg F
+        currentTemp = currentTemp * 9.0 / 5.0 + 32.0;
       }
-      lcd.setCursor(4, 1);
-      if (currentTemp < 10 && currentTemp >= 0)
+      if (bigFont)
       {
-        lcd.print("   ");
-      }
-      else if ((currentTemp < 100 && currentTemp >= 10) || (currentTemp < 0 && currentTemp > -10))
-      {
-        lcd.print("  ");
-      }
-      else if (currentTemp >= 100 || (currentTemp <= -10 && currentTemp > -100))
-      {
-        lcd.print(" ");
-      }
-      lcd.print(currentTemp, 0);
-      lcd.print(" ");
-      lcd.write(char(223)); // degree symbol
-      if (!useSI)
-      {
-        lcd.write(70); // "F"
+        boolean isNegative = false;
+        if(currentTemp < 0)
+        {
+          isNegative = true;
+          currentTemp = abs(currentTemp);
+        }
+        int currentTempInt = int(currentTemp + 0.5);
+        bigNum.displayLargeInt(currentTempInt, 0, 3, false);
+        lcd.setCursor(10, 0);
+        lcd.print("Cabin");
+        lcd.setCursor(10, 1);
+        lcd.write(char(223));
+        if (!useSI)
+        {
+          lcd.write(70); // "F"
+        }
+        else
+        {
+          lcd.write(67); // "C"
+        }
+        if (isNegative)
+        {
+          lcd.setCursor(0, 0);
+          if (currentTemp < 10)
+          {
+            lcd.print("    ");
+          }
+          else if (currentTemp < 20)
+          {
+            lcd.print("   ");
+          }
+          else if (currentTemp < 100)
+          {
+            lcd.print(" ");
+          }
+          lcd.print("-");
+        }
       }
       else
       {
-        lcd.write(67); // "C"
+        lcd.setCursor(2, 0);
+        lcd.print("Inside Temp");
+        lcd.setCursor(4, 1);
+        if (currentTemp < 10 && currentTemp >= 0)
+        {
+          lcd.print("   ");
+        }
+        else if ((currentTemp < 100 && currentTemp >= 10) || (currentTemp < 0 && currentTemp > -10))
+        {
+          lcd.print("  ");
+        }
+        else if (currentTemp >= 100 || (currentTemp <= -10 && currentTemp > -100))
+        {
+          lcd.print(" ");
+        }
+        lcd.print(currentTemp, 0);
+        lcd.print(" ");
+        lcd.write(char(223)); // degree symbol
+        if (!useSI)
+        {
+          lcd.write(70); // "F"
+        }
+        else
+        {
+          lcd.write(67); // "C"
+        }
       }
       sensors.requestTemperatures(); // request a temperature conversion
       break;
     }
     case modeOilTemp: // oil temp
     {
-      lcd.setCursor(4, 0);
-      lcd.print("Oil Temp");
       float currentTemp = sensors.getTempC(oilTempDigital);
       if (!useSI)
       {
         currentTemp = currentTemp * 9.0 / 5.0 + 32.0; // convert to deg F
       }
-      lcd.setCursor(4, 1);
-      if (currentTemp < 10 && currentTemp >= 0)
+      if (bigFont)
       {
-        lcd.print("   ");
-      }
-      else if ((currentTemp < 100 && currentTemp >= 10) || (currentTemp < 0 && currentTemp > -10))
-      {
-        lcd.print("  ");
-      }
-      else if (currentTemp >= 100 || (currentTemp <= -10 && currentTemp > -100))
-      {
-        lcd.print(" ");
-      }
-      lcd.print(currentTemp, 0);
-      lcd.print(" ");
-      lcd.write(char(223)); // degree symbol
-      if (!useSI)
-      {
-        lcd.write(70); // "F"
+        boolean isNegative = false;
+        if(currentTemp < 0)
+        {
+          isNegative = true;
+          currentTemp = abs(currentTemp);
+        }
+        int currentTempInt = int(currentTemp + 0.5);
+        bigNum.displayLargeInt(currentTempInt, 0, 3, false);
+        lcd.setCursor(10, 0);
+        lcd.print("Oil");
+        lcd.setCursor(10, 1);
+        lcd.write(char(223));
+        if (!useSI)
+        {
+          lcd.write(70); // "F"
+        }
+        else
+        {
+          lcd.write(67); // "C"
+        }
+        if (isNegative)
+        {
+          lcd.setCursor(0, 0);
+          if (currentTemp < 10)
+          {
+            lcd.print("    ");
+          }
+          else if (currentTemp < 20)
+          {
+            lcd.print("   ");
+          }
+          else if (currentTemp < 100)
+          {
+            lcd.print(" ");
+          }
+          lcd.print("-");
+        }
       }
       else
       {
-        lcd.write(67); // "C"
+        lcd.setCursor(4, 0);
+        lcd.print("Oil Temp");
+        lcd.setCursor(4, 1);
+        if (currentTemp < 10 && currentTemp >= 0)
+        {
+          lcd.print("   ");
+        }
+        else if ((currentTemp < 100 && currentTemp >= 10) || (currentTemp < 0 && currentTemp > -10))
+        {
+          lcd.print("  ");
+        }
+        else if (currentTemp >= 100 || (currentTemp <= -10 && currentTemp > -100))
+        {
+          lcd.print(" ");
+        }
+        lcd.print(currentTemp, 0);
+        lcd.print(" ");
+        lcd.write(char(223)); // degree symbol
+        if (!useSI)
+        {
+          lcd.write(70); // "F"
+        }
+        else
+        {
+          lcd.write(67); // "C"
+        }
       }
       sensors.requestTemperatures(); // request a temperature conversion
       break;
     }
     case modeTransTemp: // transmission temp
     {
-      lcd.setCursor(2, 0);
-      lcd.print("Trans. Temp");
       float currentTemp = sensors.getTempC(transTempDigital);
       if (!useSI)
       {
         currentTemp = currentTemp * 9.0 / 5.0 + 32.0; // convert to deg F
       }
-      lcd.setCursor(4, 1);
-      if (currentTemp < 10 && currentTemp >= 0)
+      if (bigFont)
       {
-        lcd.print("   ");
-      }
-      else if ((currentTemp < 100 && currentTemp >= 10) || (currentTemp < 0 && currentTemp > -10))
-      {
-        lcd.print("  ");
-      }
-      else if (currentTemp >= 100 || (currentTemp <= -10 && currentTemp > -100))
-      {
-        lcd.print(" ");
-      }
-      lcd.print(currentTemp, 0);
-      lcd.print(" ");
-      lcd.write(char(223)); // degree symbol
-      if (!useSI)
-      {
-        lcd.write(70); // "F"
+        boolean isNegative = false;
+        if(currentTemp < 0)
+        {
+          isNegative = true;
+          currentTemp = abs(currentTemp);
+        }
+        int currentTempInt = int(currentTemp + 0.5);
+        bigNum.displayLargeInt(currentTempInt, 0, 3, false);
+        lcd.setCursor(10, 0);
+        lcd.print("Trans.");
+        lcd.setCursor(10, 1);
+        lcd.write(char(223));
+        if (!useSI)
+        {
+          lcd.write(70); // "F"
+        }
+        else
+        {
+          lcd.write(67); // "C"
+        }
+        if (isNegative)
+        {
+          lcd.setCursor(0, 0);
+          if (currentTemp < 10)
+          {
+            lcd.print("    ");
+          }
+          else if (currentTemp < 20)
+          {
+            lcd.print("   ");
+          }
+          else if (currentTemp < 100)
+          {
+            lcd.print(" ");
+          }
+          lcd.print("-");
+        }
       }
       else
       {
-        lcd.write(67); // "C"
+        lcd.setCursor(2, 0);
+        lcd.print("Trans. Temp");
+        lcd.setCursor(4, 1);
+        if (currentTemp < 10 && currentTemp >= 0)
+        {
+          lcd.print("   ");
+        }
+        else if ((currentTemp < 100 && currentTemp >= 10) || (currentTemp < 0 && currentTemp > -10))
+        {
+          lcd.print("  ");
+        }
+        else if (currentTemp >= 100 || (currentTemp <= -10 && currentTemp > -100))
+        {
+          lcd.print(" ");
+        }
+        lcd.print(currentTemp, 0);
+        lcd.print(" ");
+        lcd.write(char(223)); // degree symbol
+        if (!useSI)
+        {
+          lcd.write(70); // "F"
+        }
+        else
+        {
+          lcd.write(67); // "C"
+        }
       }
       sensors.requestTemperatures();
       break;
     }
     case modeIntakeTemp: // intake temp
     {
-      lcd.setCursor(2, 0);
-      lcd.print("Intake Temp");
       float currentTemp = sensors.getTempC(intakeTempDigital);
       if (!useSI)
       {
         currentTemp = currentTemp * 9.0 / 5.0 + 32.0; // convert to deg F
       }
-      lcd.setCursor(4, 1);
-      if (currentTemp < 10 && currentTemp >= 0)
+      if (bigFont)
       {
-        lcd.print("   ");
-      }
-      else if ((currentTemp < 100 && currentTemp >= 10) || (currentTemp < 0 && currentTemp > -10))
-      {
-        lcd.print("  ");
-      }
-      else if (currentTemp >= 100 || (currentTemp <= -10 && currentTemp > -100))
-      {
-        lcd.print(" ");
-      }
-      lcd.print(currentTemp, 0);
-      lcd.print(" ");
-      lcd.write(char(223)); // degree symbol
-      if (!useSI)
-      {
-        lcd.write(70); // "F"
+        boolean isNegative = false;
+        if(currentTemp < 0)
+        {
+          isNegative = true;
+          currentTemp = abs(currentTemp);
+        }
+        int currentTempInt = int(currentTemp + 0.5);
+        bigNum.displayLargeInt(currentTempInt, 0, 3, false);
+        lcd.setCursor(10, 0);
+        lcd.print("Intake");
+        lcd.setCursor(10, 1);
+        lcd.write(char(223)); // degree symbol
+        if (!useSI)
+        {
+          lcd.write(70); // "F"
+        }
+        else
+        {
+          lcd.write(67); // "C"
+        }
+        if (isNegative)
+        {
+          lcd.setCursor(0, 0);
+          if (currentTemp < 10)
+          {
+            lcd.print("    ");
+          }
+          else if (currentTemp < 20)
+          {
+            lcd.print("   ");
+          }
+          else if (currentTemp < 100)
+          {
+            lcd.print(" ");
+          }
+          lcd.print("-");
+        }
       }
       else
       {
-        lcd.write(67); // "C"
+        lcd.setCursor(2, 0);
+        lcd.print("Intake Temp");
+        lcd.setCursor(4, 1);
+        if (currentTemp < 10 && currentTemp >= 0)
+        {
+          lcd.print("   ");
+        }
+        else if ((currentTemp < 100 && currentTemp >= 10) || (currentTemp < 0 && currentTemp > -10))
+        {
+          lcd.print("  ");
+        }
+        else if (currentTemp >= 100 || (currentTemp <= -10 && currentTemp > -100))
+        {
+          lcd.print(" ");
+        }
+        lcd.print(currentTemp, 0);
+        lcd.print(" ");
+        lcd.write(char(223)); // degree symbol
+        if (!useSI)
+        {
+          lcd.write(70); // "F"
+        }
+        else
+        {
+          lcd.write(67); // "C"
+        }
       }
       sensors.requestTemperatures(); // request a temperature conversion
       break;
     }
-    case modeTach: // engine speed
+    case modeTach: // engine (angular) speed
     {
-      lcd.setCursor(2, 0);
-      lcd.print("Engine Speed");
       int currentRPM = getRPM();
-      lcd.setCursor(4, 1);
-      if(currentRPM < 10)
+      if (bigFont)
       {
-        lcd.print("   ");
+        bigNum.displayLargeInt(currentRPM, 0, 4, false);
+        lcd.setCursor(13, 1);
+        lcd.print("RPM");
       }
-      else if(currentRPM < 100)
+      else
       {
-        lcd.print("  ");
+        lcd.setCursor(2, 0);
+        lcd.print("Engine Speed");
+        lcd.setCursor(4, 1);
+        if(currentRPM < 10)
+        {
+          lcd.print("   ");
+        }
+        else if(currentRPM < 100)
+        {
+          lcd.print("  ");
+        }
+        else if(currentRPM < 1000)
+        {
+          lcd.print(" ");
+        }
+        lcd.print(currentRPM);
+        lcd.print(" RPM");
       }
-      else if(currentRPM < 1000)
-      {
-        lcd.print(" ");
-      }
-      lcd.print(currentRPM);
-      lcd.print(" RPM");
       break;
     }
     case modeAFRatio:
     {
-      lcd.setCursor(3, 0);
-      lcd.print("A/F Ratio");
       float currentAFRatio = getLambda() * 14.7; // convert to Air/Fuel Mass Ratio (Air/Gasoline)
-      lcd.setCursor(6, 1);
-      lcd.print(currentAFRatio, 1);
+      if (bigFont)
+      {
+        currentAFRatio *= 10;
+        int currentAFRatioInt = int(currentAFRatio + 0.5);
+        byte lastDigit = currentAFRatioInt % 10;
+        currentAFRatioInt /= 10;
+        bigNum.displayLargeInt(currentAFRatioInt, 0, 2, false);
+        lcd.setCursor(9, 0);
+        lcd.print("A/F");
+        lcd.setCursor(6, 1);
+        lcd.print(".");
+        lcd.print(lastDigit);
+        lcd.print(" Ratio");
+      }
+      else
+      {
+        lcd.setCursor(3, 0);
+        lcd.print("A/F Ratio");
+        lcd.setCursor(5, 1);
+        lcd.print(currentAFRatio, 1);
+      }
       break;
     }
     case modeIntakePress:
@@ -1452,78 +1698,161 @@ void displayInfo(byte displayMode)
       float currentIntakePress = getIntakePress();
       if (useSI)
       {
-        currentIntakePress *= 0.06895; // convert to bar
+        currentIntakePress *=  0.06895; // convert to bar
       }
-      lcd.setCursor(5, 0);
-      if (currentIntakePress <= 0)
+      if (bigFont)
       {
-        lcd.print("Vacuum");
+        boolean isNegative = false;
+        if(currentIntakePress < 0.05)
+        {
+          isNegative = true;
+          currentIntakePress = abs(currentIntakePress);
+        }
+        currentIntakePress *= 10;
+        int currentIntakePressInt = int(currentIntakePress + 0.5);
+        byte lastDigit = currentIntakePressInt % 10;
+        currentIntakePressInt /= 10;
+        bigNum.displayLargeInt(currentIntakePressInt, 0, 2, false);
+        lcd.setCursor(9, 0);
+        if (isNegative)
+        {
+          lcd.print("Vacuum");
+        }
+        else
+        {
+          lcd.print("Boost ");
+        }
+        lcd.setCursor(6, 1);
+        lcd.print(".");
+        lcd.print(lastDigit);
+        if (!useSI)
+        {
+          lcd.print(" psi");
+        }
+        else
+        {
+          lcd.print(" bar");
+        }
+        if (isNegative)
+        {
+          lcd.setCursor(0, 0);
+          currentIntakePress /= 10;
+          if(currentIntakePress < 10)
+          {
+            lcd.print(" ");
+          }
+          lcd.print("-");
+        }
       }
       else
       {
-        lcd.print("Boost ");
-      }
-      lcd.setCursor(3, 1);
-      if (currentIntakePress < 10 && currentIntakePress >= 0)
-      {
-        lcd.print("  ");
-      }
-      else if ((currentIntakePress < 0 && currentIntakePress > -10) || currentIntakePress >= 10)
-      {
-        lcd.print(" ");
-      }
-      lcd.print(currentIntakePress, 1);
-      if (!useSI)
-      {
-        lcd.print(" psi");
-      }
-      else
-      {
-        lcd.print(" bar");
+        lcd.setCursor(5, 0);
+        if (currentIntakePress <= 0)
+        {
+          lcd.print("Vacuum");
+        }
+        else
+        {
+          lcd.print("Boost ");
+        }
+        lcd.setCursor(3, 1);
+        if (currentIntakePress < 10 && currentIntakePress >= 0)
+        {
+          lcd.print("  ");
+        }
+        else if ((currentIntakePress < 0 && currentIntakePress > -10) || currentIntakePress >= 10)
+        {
+          lcd.print(" ");
+        }
+        lcd.print(currentIntakePress, 1);
+        if (!useSI)
+        {
+          lcd.print(" psi");
+        }
+        else
+        {
+          lcd.print(" bar");
+        }
       }
       break;
     }
     case modeMAFR:
     {
-      lcd.setCursor(1, 0);
-      lcd.print("Mass air flow");
       float currentMAFR = getMAFR();
       if (!useSI)
       {
         currentMAFR *= 2.205; // convert to lb/min
       }
-      lcd.setCursor(5, 1);  
-      if (currentMAFR < 10)
+      if (bigFont)
       {
-        lcd.print(" ");
-      }
-      lcd.print(currentMAFR, 1);
-      if (!useSI)
-      {
-        lcd.print(" lb/min");
+        lcd.setCursor(11, 0);
+        lcd.print("MAFR");
+        currentMAFR *= 10;
+        int currentMAFRInt = int(currentMAFR + 0.5);
+        byte lastDigit = currentMAFRInt % 10;
+        currentMAFRInt /= 10;
+        bigNum.displayLargeInt(currentMAFRInt, 0, 2, false);
+        lcd.setCursor(6, 1);
+        lcd.print(".");
+        lcd.print(lastDigit);  
+        if (!useSI)
+        {
+          lcd.print("  lb/min");
+        }
+        else
+        {
+          lcd.print("  kg/min");
+        }
       }
       else
       {
-        lcd.print(" kg/min");
+        lcd.setCursor(1, 0);
+        lcd.print("Mass air flow");
+        lcd.setCursor(2, 1);  
+        if (currentMAFR < 10)
+        {
+          lcd.print(" ");
+        }
+        lcd.print(currentMAFR, 1);
+        if (!useSI)
+        {
+          lcd.print(" lb/min");
+        }
+        else
+        {
+          lcd.print(" kg/min");
+        }
       }
       break;
     }
     case modeFuelLevel: //  Fuel Level
     {
-      lcd.setCursor(3, 0);
-      lcd.print("Fuel Level");
       float fuelLevel = getFuelLevel();
-      lcd.setCursor(5, 1);
-      if (fuelLevel < 10)
+      if (bigFont)
       {
-        lcd.print("  ");
+        int fuelLevelInt = int(fuelLevel + 0.5); // convert to int with rounding
+        bigNum.displayLargeInt(fuelLevel, 0, 3, false);
+        lcd.setCursor(10, 0);
+        lcd.print("Fuel");
+        lcd.setCursor(10, 1);
+        lcd.print("%");
       }
-      else if (fuelLevel < 100)
+      else
       {
-        lcd.print(" ");
+        lcd.setCursor(3, 0);
+        lcd.print("Fuel Level");
+        lcd.setCursor(5, 1);
+        if (fuelLevel < 10)
+        {
+          lcd.print("  ");
+        }
+        else if (fuelLevel < 100)
+        {
+          lcd.print(" ");
+        }
+        lcd.print(fuelLevel, 0);
+        lcd.print(" %");
       }
-      lcd.print(fuelLevel, 0);
-      lcd.print(" %");
       break;
     }
     case modeLCDSetup: // Display Settings
@@ -1669,487 +1998,6 @@ void displayInfo(byte displayMode)
       {
         lcd.print(" ON");
       }
-      break;
-    }
-  }
-}
-
-// collect and display info using large font
-void displayInfoLarge(byte displayMode)
-{
-  switch (displayMode)
-  {
-    case modeTach:
-    {
-      bigNum.displayLargeInt(getRPM(), 0, 4, false);
-      lcd.setCursor(13, 1);
-      lcd.print("RPM");
-      break;
-    }
-    case modeFuelLevel:
-    {
-      int fuelLevel = int(getFuelLevel() + 0.5); // convert to int with rounding
-      bigNum.displayLargeInt(fuelLevel, 0, 3, false);
-      lcd.setCursor(10, 0);
-      lcd.print("Fuel");
-      lcd.setCursor(10, 1);
-      lcd.print("%");
-      break;
-    }
-    case modeBattVoltage: // battery voltage
-    {
-      float battVoltage = getBattVoltage();
-      battVoltage *= 10;
-      int battVoltageInt = int(battVoltage + 0.5);
-      byte lastDigit = battVoltageInt % 10;
-      battVoltageInt /= 10;
-      bigNum.displayLargeInt(battVoltageInt, 0, 2, false);
-      lcd.setCursor(9, 0);
-      lcd.print("Battery");
-      lcd.setCursor(6, 1);
-      lcd.print(".");
-      lcd.print(lastDigit);
-      lcd.print(" Volts");
-      break;
-    }
-    case modeOilPress: // oil pressure
-    {
-      float oilPressure = getOilPress();
-      if (useSI)
-      {
-        oilPressure *= 0.06895; // convert to bar
-      }
-      oilPressure *= 10;
-      int oilPressureInt = int(oilPressure + 0.5);
-      byte lastDigit = oilPressureInt % 10;
-      oilPressureInt /= 10;
-      bigNum.displayLargeInt(oilPressureInt, 0, 3, false);
-      lcd.setCursor(12, 0);
-      lcd.print("Oil");
-      lcd.setCursor(9, 1);
-      lcd.print(".");
-      lcd.print(lastDigit);
-      if (useSI)
-      {
-        lcd.print(" bar");
-      }
-      else
-      {
-        lcd.print(" psi");
-      }
-      break;
-    }
-    case modeClock:
-    {
-      time_t currentTime = now();
-      currentHour = hourFormat12(currentTime);
-      currentMinute = minute(currentTime);
-      bigNum.displayLargeInt(currentHour, 0 , 2, false);
-      lcd.setCursor(6, 0);
-      lcd.write(165); // dot symbol
-      lcd.setCursor(6, 1);
-      lcd.write(165); // dot symbol
-      bigNum.displayLargeInt(currentMinute, 7, 2, true);
-      lcd.setCursor(14, 1);
-      if(isAM())
-      {
-        lcd.write(65); // "A"
-      }
-      else
-      {
-        lcd.write(80); // "P"
-      }
-      lcd.write(77); // "M"
-      break;
-    }
-    case modeIntakeTemp:
-    {
-      float currentTemp = sensors.getTempC(intakeTempDigital);
-      if (!useSI)
-      {
-        currentTemp = currentTemp * 9.0 / 5.0 + 32.0; // convert to deg F
-      }
-      boolean isNegative = false;
-      if(currentTemp < 0)
-      {
-        isNegative = true;
-        currentTemp = abs(currentTemp);
-      }
-      int currentTempInt = int(currentTemp + 0.5);
-      bigNum.displayLargeInt(currentTempInt, 0, 3, false);
-      lcd.setCursor(10, 0);
-      lcd.print("Intake");
-      lcd.setCursor(10, 1);
-      lcd.write(char(223)); // degree symbol
-      if (!useSI)
-      {
-        lcd.write(70); // "F"
-      }
-      else
-      {
-        lcd.write(67); // "C"
-      }
-      if (isNegative)
-      {
-        lcd.setCursor(0, 0);
-        if (currentTemp < 10)
-        {
-          lcd.print("    ");
-        }
-        else if (currentTemp < 20)
-        {
-          lcd.print("   ");
-        }
-        else if (currentTemp < 100)
-        {
-          lcd.print(" ");
-        }
-        lcd.print("-");
-      }
-      sensors.requestTemperatures();
-      break;
-    }
-    case modeOilTemp:
-    {
-      float currentTemp = sensors.getTempC(oilTempDigital);
-      if (!useSI)
-      {
-        currentTemp = currentTemp * 9.0 / 5.0 + 32.0; // convert to deg F
-      }
-      boolean isNegative = false;
-      if(currentTemp < 0)
-      {
-        isNegative = true;
-        currentTemp = abs(currentTemp);
-      }
-      int currentTempInt = int(currentTemp + 0.5);
-      bigNum.displayLargeInt(currentTempInt, 0, 3, false);
-      lcd.setCursor(10, 0);
-      lcd.print("Oil");
-      lcd.setCursor(10, 1);
-      lcd.write(char(223));
-      if (!useSI)
-      {
-        lcd.write(70); // "F"
-      }
-      else
-      {
-        lcd.write(67); // "C"
-      }
-      if (isNegative)
-      {
-        lcd.setCursor(0, 0);
-        if (currentTemp < 10)
-        {
-          lcd.print("    ");
-        }
-        else if (currentTemp < 20)
-        {
-          lcd.print("   ");
-        }
-        else if (currentTemp < 100)
-        {
-          lcd.print(" ");
-        }
-        lcd.print("-");
-      }
-      sensors.requestTemperatures();
-      break;
-    }
-    case modeCoolantTemp:
-    {
-      float currentTemp = getCoolantTemp();
-      if (!useSI)
-      {
-        currentTemp = currentTemp * 9.0 / 5.0 + 32.0; // convert to deg F
-      }
-      boolean isNegative = false;
-      if(currentTemp < 0)
-      {
-        isNegative = true;
-        currentTemp = abs(currentTemp);
-      }
-      int currentTempInt = int(currentTemp + 0.5);
-      bigNum.displayLargeInt(currentTempInt, 0, 3, false);
-      lcd.setCursor(10, 0);
-      lcd.print("Engine");
-      lcd.setCursor(10, 1);
-      lcd.write(char(223));
-      if (!useSI)
-      {
-        lcd.write(70); // "F"
-      }
-      else
-      {
-        lcd.write(67); // "C"
-      }
-      if (isNegative)
-      {
-        lcd.setCursor(0, 0);
-        if (currentTemp < 10)
-        {
-          lcd.print("    ");
-        }
-        else if (currentTemp < 20)
-        {
-          lcd.print("   ");
-        }
-        else if (currentTemp < 100)
-        {
-          lcd.print(" ");
-        }
-        lcd.print("-");
-      }
-      break;
-    }
-    case modeInsideTemp:
-    {
-      float currentTemp = sensors.getTempC(insideTempDigital);
-      if (!useSI)
-      {
-        currentTemp = currentTemp * 9.0 / 5.0 + 32.0;
-      }
-      boolean isNegative = false;
-      if(currentTemp < 0)
-      {
-        isNegative = true;
-        currentTemp = abs(currentTemp);
-      }
-      int currentTempInt = int(currentTemp + 0.5);
-      bigNum.displayLargeInt(currentTempInt, 0, 3, false);
-      lcd.setCursor(10, 0);
-      lcd.print("Cabin");
-      lcd.setCursor(10, 1);
-      lcd.write(char(223));
-      if (!useSI)
-      {
-        lcd.write(70); // "F"
-      }
-      else
-      {
-        lcd.write(67); // "C"
-      }
-      if (isNegative)
-      {
-        lcd.setCursor(0, 0);
-        if (currentTemp < 10)
-        {
-          lcd.print("    ");
-        }
-        else if (currentTemp < 20)
-        {
-          lcd.print("   ");
-        }
-        else if (currentTemp < 100)
-        {
-          lcd.print(" ");
-        }
-        lcd.print("-");
-      }
-      sensors.requestTemperatures();
-      break;
-    }
-    case modeOutsideTemp:
-    {
-      float currentTemp = sensors.getTempC(outsideTempDigital);
-      if (!useSI)
-      {
-        currentTemp = currentTemp * 9.0 / 5.0 + 32.0; // comvert to deg F
-      }
-      boolean isNegative = false;
-      if(currentTemp < 0)
-      {
-        isNegative = true;
-        currentTemp = abs(currentTemp);
-      }
-      int currentTempInt = int(currentTemp + 0.5);
-      bigNum.displayLargeInt(currentTempInt, 0, 3, false);
-      lcd.setCursor(10, 0);
-      lcd.print("Out");
-      lcd.setCursor(10, 1);
-      lcd.write(char(223));
-      if (!useSI)
-      {
-        lcd.write(70); // "F"
-      }
-      else
-      {
-        lcd.write(67); // "C"
-      }
-      if (isNegative)
-      {
-        lcd.setCursor(0, 0);
-        if (currentTemp < 10)
-        {
-          lcd.print("    ");
-        }
-        else if (currentTemp < 20)
-        {
-          lcd.print("   ");
-        }
-        else if (currentTemp < 100)
-        {
-          lcd.print(" ");
-        }
-        lcd.print("-");
-      }
-      sensors.requestTemperatures();
-      break;
-    }
-    case modeTransTemp:
-    {
-      float currentTemp = sensors.getTempC(transTempDigital);
-      if (!useSI)
-      {
-        currentTemp = currentTemp * 9.0 / 5.0 + 32.0; // convert to deg F
-      }
-      boolean isNegative = false;
-      if(currentTemp < 0)
-      {
-        isNegative = true;
-        currentTemp = abs(currentTemp);
-      }
-      int currentTempInt = int(currentTemp + 0.5);
-      bigNum.displayLargeInt(currentTempInt, 0, 3, false);
-      lcd.setCursor(10, 0);
-      lcd.print("Trans.");
-      lcd.setCursor(10, 1);
-      lcd.write(char(223));
-      if (!useSI)
-      {
-        lcd.write(70); // "F"
-      }
-      else
-      {
-        lcd.write(67); // "C"
-      }
-      if (isNegative)
-      {
-        lcd.setCursor(0, 0);
-        if (currentTemp < 10)
-        {
-          lcd.print("    ");
-        }
-        else if (currentTemp < 20)
-        {
-          lcd.print("   ");
-        }
-        else if (currentTemp < 100)
-        {
-          lcd.print(" ");
-        }
-        lcd.print("-");
-      }
-      sensors.requestTemperatures();
-      break;
-    }
-    case modeAFRatio:
-    {
-      float currentAFRatio = getLambda() * 14.7; // convert to Air/Fuel Mass Ratio (Air/Gasoline)
-      currentAFRatio *= 10;
-      int currentAFRatioInt = int(currentAFRatio + 0.5);
-      byte lastDigit = currentAFRatioInt % 10;
-      currentAFRatioInt /= 10;
-      bigNum.displayLargeInt(currentAFRatioInt, 0, 2, false);
-      lcd.setCursor(9, 0);
-      lcd.print("A/F");
-      lcd.setCursor(6, 1);
-      lcd.print(".");
-      lcd.print(lastDigit);
-      lcd.print(" Ratio");
-      break;
-    }
-    case modeIntakePress:
-    {
-      float currentIntakePress = getIntakePress();
-      if (useSI)
-      {
-        currentIntakePress *=  0.06895; // convert to bar
-      }
-      boolean isNegative = false;
-      if(currentIntakePress < 0.05)
-      {
-        isNegative = true;
-        currentIntakePress = abs(currentIntakePress);
-      }
-      currentIntakePress *= 10;
-      int currentIntakePressInt = int(currentIntakePress + 0.5);
-      byte lastDigit = currentIntakePressInt % 10;
-      currentIntakePressInt /= 10;
-      bigNum.displayLargeInt(currentIntakePressInt, 0, 2, false);
-      lcd.setCursor(9, 0);
-      if (isNegative)
-      {
-        lcd.print("Vacuum");
-      }
-      else
-      {
-        lcd.print("Boost ");
-      }
-      lcd.setCursor(6, 1);
-      lcd.print(".");
-      lcd.print(lastDigit);
-      if (!useSI)
-      {
-        lcd.print(" psi");
-      }
-      else
-      {
-        lcd.print(" bar");
-      }
-      if (isNegative)
-      {
-        lcd.setCursor(0, 0);
-        currentIntakePress /= 10;
-        if(currentIntakePress < 10)
-        {
-          lcd.print(" ");
-        }
-        lcd.print("-");
-      }
-      break;
-    }
-    case modeMAFR:
-    {
-      lcd.setCursor(11, 0);
-      lcd.print("MAFR");
-      float currentMAFR = getMAFR();
-      if (!useSI)
-      {
-        currentMAFR *= 2.205; // convert to lb/min
-      }
-      currentMAFR *= 10;
-      int currentMAFRInt = int(currentMAFR + 0.5);
-      byte lastDigit = currentMAFRInt % 10;
-      currentMAFRInt /= 10;
-      bigNum.displayLargeInt(currentMAFRInt, 0, 2, false);
-      lcd.setCursor(6, 1);
-      lcd.print(".");
-      lcd.print(lastDigit);  
-      if (!useSI)
-      {
-        lcd.print("  lb/min");
-      }
-      else
-      {
-        lcd.print("  kg/min");
-      }
-      break;
-    }
-    case modeLCDSetup: // Display Settings
-    {
-      lcd.setCursor(4, 0);
-      lcd.print("Display");
-      lcd.setCursor(4, 1);
-      lcd.print("Settings");
-      break;
-    }
-    case modeSystemSetup: // System Settings
-    {
-      lcd.setCursor(5, 0);
-      lcd.print("System");
-      lcd.setCursor(4, 1);
-      lcd.print("Settings");
       break;
     }
   }
