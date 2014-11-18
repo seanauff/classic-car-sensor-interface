@@ -294,22 +294,26 @@ void loop()
     // loop until button pressed
     while(!buttonPressed)
     { 
-      lcdHue = modeSwitch.read() / 4; // set lcdHue according to encoder position
-      // loop around if out of range
-      if(lcdHue > 120) // max values is 120
+      modeSwitchPosition = modeSwitch.read();
+      if(modeSwitchPosition % 4 == 0)
       {
-        lcdHue = 1;
-        modeSwitch.write(lcdHue * 4);
+        lcdHue = modeSwitchPosition / 4; // set lcdHue according to encoder position
+        // loop around if out of range
+        if(lcdHue > 120) // max values is 120
+        {
+          lcdHue = 1;
+          modeSwitch.write(lcdHue * 4);
+        }
+        else if (lcdHue < 1) // min value is 1
+        {
+          lcdHue = 120;
+          modeSwitch.write(lcdHue * 4);
+        }
+        setRGBFromHue(); // determine new RGB values
+        lcdBrightness = map((lcdLEDRed + lcdLEDGreen + lcdLEDBlue), 255, 510, 100, 50); // normalize brightness due to varying amounts of LEDs used
+        writeLCDValues(); // write new values to LCD
+        displayInfo(modeLCDColor, lcdBigFont); // update display
       }
-      else if (lcdHue < 1) // min value is 1
-      {
-        lcdHue = 120;
-        modeSwitch.write(lcdHue * 4);
-      }
-      setRGBFromHue(); // determine new RGB values
-      lcdBrightness = map((lcdLEDRed + lcdLEDGreen + lcdLEDBlue), 255, 510, 100, 50); // normalize brightness due to varying amounts of LEDs used
-      writeLCDValues(); // write new values to LCD
-      displayInfo(modeLCDColor, lcdBigFont); // update display
     }
     // store new value in EEPROM if it changed
     if (lcdHue != previousHue)
@@ -337,7 +341,7 @@ void loop()
         lcdAutoDim = 0;
         modeSwitch.write(lcdAutoDim * 4);
       }
-      if (lcdAutoDim == 0)
+      if (!lcdAutoDim)
       {
         lcdBrightness = previousBrightness; // restore brightness to previous value
       }
@@ -357,7 +361,7 @@ void loop()
     modeSwitch.write(lcdBrightness * 4); // write current state to Encoder
     // loop until button pressed
     // can only change manual brightness if Automatic brightness is OFF
-    while(!buttonPressed && lcdAutoDim == 0)
+    while(!buttonPressed && !lcdAutoDim)
     { 
       lcdBrightness = modeSwitch.read() / 4;
       // don't go past limits
@@ -760,12 +764,12 @@ void setRGBFromHue()
   if(hue <= 20)
   {
     lcdLEDRed = 255;
-    lcdLEDGreen = map(hue, 1, 20, 0, 255);
+    lcdLEDGreen = map(hue, 0, 20, 0, 255);
     lcdLEDBlue = 0;
   }
   else if (hue <= 40)
   {
-    lcdLEDRed = map(hue, 21, 40, 255, 0);
+    lcdLEDRed = map(hue, 20, 40, 255, 0);
     lcdLEDGreen = 255;
     lcdLEDBlue = 0;
   }
@@ -773,17 +777,17 @@ void setRGBFromHue()
   {
     lcdLEDRed = 0;
     lcdLEDGreen = 255;
-    lcdLEDBlue = map(hue, 41, 60, 0, 255);
+    lcdLEDBlue = map(hue, 40, 60, 0, 255);
   }
   else if (hue <= 80)
   {
     lcdLEDRed = 0;
-    lcdLEDGreen = map(hue, 61, 80, 255, 0);
+    lcdLEDGreen = map(hue, 60, 80, 255, 0);
     lcdLEDBlue = 255;
   }
   else if (hue <= 100)
   {
-    lcdLEDRed = map(hue, 81, 100, 0, 255);
+    lcdLEDRed = map(hue, 80, 100, 0, 255);
     lcdLEDGreen = 0;
     lcdLEDBlue = 255;
   }
@@ -791,7 +795,7 @@ void setRGBFromHue()
   {
     lcdLEDRed = 255;
     lcdLEDGreen = 0;
-    lcdLEDBlue = map(hue, 101, 120, 255, 0);
+    lcdLEDBlue = map(hue, 100, 120, 255, 0);
   }
 }
 
@@ -817,8 +821,8 @@ void writeLCDValues()
   int b = map(lcdLEDBlue, 0, 255, 0, lcdBrightness);
   // set PWM values accordingly
   analogWrite(lcdLEDRedPin, map(r, 0, 100, 0, 255));
-  analogWrite(lcdLEDGreenPin, map(g, 0, 100, 0, 200)); // compensate for brighter Green LED
-  analogWrite(lcdLEDBluePin, map(b, 0, 100, 0, 200)); // compensate for brighter Blue LED
+  analogWrite(lcdLEDGreenPin, map(g, 0, 100, 0, 200)); // compensate for LED brightness differences
+  analogWrite(lcdLEDBluePin, map(b, 0, 100, 0, 200)); // compensate for LED brightness differences
 }
 
 // reads input voltage
@@ -1878,7 +1882,7 @@ void displayInfo(byte displayMode, boolean bigFont)
       lcd.setCursor(1, 1);
       lcd.print(displacement);
       lcd.print(" ci  ");
-      lcd.print(float(displacement) / 61.024, 2);
+      lcd.print(displacement / 61.024, 2);
       lcd.print(" L");
       break;
     }
@@ -1912,77 +1916,119 @@ void displayInfo(byte displayMode, boolean bigFont)
     }
     case modeEngineCylinders:
     {
-      lcd.setCursor(0, 0);
-      lcd.print("Engine Cylinders");
-      lcd.setCursor(7, 1);
-      if (engineCylinders < 10)
+      if (bigFont)
       {
-        lcd.print(" ");
+        bigNum.displayLargeInt(engineCylinders, 0, 2, false);
+        lcd.setCursor(8, 0);
+        lcd.print("Engine");
+        lcd.setCursor(7, 1);
+        lcd.print("Cylinders");
       }
-      lcd.print(engineCylinders);
+      else
+      {
+        lcd.setCursor(0, 0);
+        lcd.print("Engine Cylinders");
+        lcd.setCursor(7, 1);
+        if (engineCylinders < 10)
+        {
+          lcd.print(" ");
+        }
+        lcd.print(engineCylinders);
+      }
       break;
     }
     case modeLCDColor:
     {
-      lcd.setCursor(3, 0);
-      lcd.print("LCD Color");
-      lcd.setCursor(6, 1);
-      if(lcdHue < 10)
+      if (bigFont)
       {
-        lcd.print("  ");
+        bigNum.displayLargeInt(lcdHue, 0, 3, false);
+        lcd.setCursor(10, 1);
+        lcd.print("Color");
       }
-      else if (lcdHue < 100)
+      else
       {
-        lcd.print(" ");
+        lcd.setCursor(3, 0);
+        lcd.print("LCD Color");
+        lcd.setCursor(6, 1);
+        if(lcdHue < 10)
+        {
+          lcd.print("  ");
+        }
+        else if (lcdHue < 100)
+        {
+          lcd.print(" ");
+        }
+        lcd.print(lcdHue);
       }
-      lcd.print(lcdHue);
       break;
     }
     case modeBigFont:
     {
       lcd.setCursor(4, 0);
-      lcd.print("Big Font");
+      lcd.print("Big Font ");
       lcd.setCursor(6, 1);
-      if(lcdBigFont == 0)
+      if(lcdBigFont)
       {
-        lcd.print("OFF");
+        lcd.print(" ON");
       }
       else
       {
-        lcd.print(" ON");
+        lcd.print("OFF     ");
       }
       break;
     }
     case modeLCDBrightness: // LCD brightness
     {
-      lcd.setCursor(1, 0);
-      lcd.print("LCD Brightness");
-      lcd.setCursor(6, 1);
-      if (lcdBrightness < 10)
+      if (bigFont)
       {
-        lcd.print("  ");
+        bigNum.displayLargeInt(lcdBrightness, 0, 3, false);
+        lcd.setCursor(10, 0);
+        lcd.print("Bright");
+        lcd.setCursor(10, 1);
+        lcd.print("ness");
       }
-      else if (lcdBrightness < 100)
-      {  
-        lcd.print(" ");
+      else
+      {
+        lcd.setCursor(1, 0);
+        lcd.print("LCD Brightness");
+        lcd.setCursor(6, 1);
+        if (lcdBrightness < 10)
+        {
+          lcd.print("  ");
+        }
+        else if (lcdBrightness < 100)
+        {  
+          lcd.print(" ");
+        }
+        lcd.print(lcdBrightness);
       }
-      lcd.print(lcdBrightness);
       break;
     }
     case modeLCDContrast: // LCD contrast
     {
-      lcd.setCursor(2, 0);
-      lcd.print("LCD Contrast");
-      lcd.setCursor(6, 1);
-      if (lcdContrast < 10)
+      if (bigFont)
       {
-        lcd.print("  ");
+        bigNum.displayLargeInt(lcdContrast, 0, 3, false);
+        lcd.setCursor(10, 0);
+        lcd.print("Con");
+        lcd.setCursor(10, 1);
+        lcd.print("trast");
       }
-      else if (lcdContrast < 100)
-      {  
-        lcd.print(" ");
+      else
+      {
+        lcd.setCursor(2, 0);
+        lcd.print("LCD Contrast");
+        lcd.setCursor(6, 1);
+        if (lcdContrast < 10)
+        {
+          lcd.print("  ");
+        }
+        else if (lcdContrast < 100)
+        {  
+          lcd.print(" ");
+        }
+        lcd.print(lcdContrast);
       }
-      lcd.print(lcdContrast);
       break;
     }
     case modeLCDAutoDim: // LCD AutoDim ON/OFF
@@ -1990,13 +2036,13 @@ void displayInfo(byte displayMode, boolean bigFont)
       lcd.setCursor(2, 0);
       lcd.print("LCD Auto Dim");
       lcd.setCursor(6, 1);
-      if(lcdAutoDim == 0)
+      if(lcdAutoDim)
       {
-        lcd.print("OFF");
+        lcd.print(" ON");
       }
       else
       {
-        lcd.print(" ON");
+        lcd.print("OFF");
       }
       break;
     }
