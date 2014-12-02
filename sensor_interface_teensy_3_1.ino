@@ -41,22 +41,23 @@ const int engineCylindersAddress = 7;
 const int refreshIntervalAddress = 8;
 const int displacementAddress1 = 9;
 const int displacementAddress2 = 10;
+const int engineCyclesAddress = 11;
 
 // digital pins
-const byte gpsRXPin = 0; // GPS receive
-const byte gpsTXPin = 1; // GPS transmit
+// const byte gpsRXPin = 0; // GPS receive (currently unused)
+// const byte gpsTXPin = 1; // GPS transmit (currently unused)
 const byte lcdRSPin = 2; // LCD RS
-const byte canTXPin = 3; // CAN bus transmit
-const byte canRXPin = 4; // CAN bus receive
+// const byte canTXPin = 3; // CAN bus transmit (currently unused)
+// const byte canRXPin = 4; // CAN bus receive (currently unused)
 const byte lcdLEDRedPin = 5; // control for Red LED (PWM)
 const byte lcdLEDGreenPin = 6; // control for Green LED (PWM)
 const byte lcdRWPin = 7; // LCD RW pin
 const byte lcdEPin = 8; // LCD E pin
 const byte lcdLEDBluePin = 9; // control for Blue LED (PWM)
-const byte spiSSPin1 = 10; // SPI slave select 1
-const byte spiMOSIPin = 11; // SPI MOSI
-const byte spiMISOPin = 12; // SPI MISO
-const byte spiSCKPin = 13; // SPI SCK
+// const byte spiSSPin1 = 10; // SPI slave select 1 (currently unused)
+// const byte spiMOSIPin = 11; // SPI MOSI (currently unused)
+// const byte spiMISOPin = 12; // SPI MISO (currently unused)
+// const byte spiSCKPin = 13; // SPI SCK (currently unused)
 const byte switchPin = 14; // encoder momentary switch
 const byte encoderPin1 = 15; // A leg of encoder
 const byte encoderPin2 = 16; // B leg of encoder
@@ -65,8 +66,8 @@ const byte lcdD4Pin = 24; // LCD D4 pin
 const byte lcdD5Pin = 25; // LCD D5 Pin
 const byte lcdD6Pin = 26; // LCD D6 Pin
 const byte lcdD7Pin = 27; // LCD D7 pin
-const byte wireSCLPin = 29; // I2C SCL
-const byte wireSDAPin = 30; // I2C SDA
+// const byte wireSCLPin = 29; // I2C SCL (currently unused)
+// const byte wireSDAPin = 30; // I2C SDA (currently unused)
 const byte factoryResetPin = 32; // held HIGH by internal pullup, short to GND during bootup to reset to factory defualts 
 const byte oneWirePin = 33; // data pin for 1-Wire devices (DS18B20)
 
@@ -81,7 +82,7 @@ const byte lcdContrastPin = A14; // constast controlled by DAC
 const byte oilPressPin = A20; // pin for oil pressure
 
 // analog input setup
-const float aRef = 3.3; // analog reference for board
+const float aRef = 3.3; // analog reference for board (Volts)
 const float regVoltage = 5.0; // instrument unit voltage regulator output (Volts)
 const float oilGaugeOhms = 13.0; // resistance of oil pressure gauge (ohms)
 const float fuelGaugeOhms = 13.0; // resistance of fuel level gauge (ohms)
@@ -93,18 +94,18 @@ const float SHparamA = 1.869336e-3;
 const float SHparamB = 2.723037e-4;
 const float SHparamC = 2.833889e-7;
 
-// OneWire setup (DS18B20)
+// OneWire setup (DS18B20 Temperature Sensors)
 OneWire oneWire(oneWirePin); // create OneWire object
 DallasTemperature sensors(&oneWire); // create DallasTemperature object and pass OneWire object to it
 // define sensor addresses
-DeviceAddress insideTempDigital = {0x28, 0xFF, 0x1B, 0x36, 0x2D, 0x04, 0x00, 0xBA};
-DeviceAddress outsideTempDigital = {0x28, 0xFF, 0xDF, 0x33, 0x2B, 0x04, 0x00, 0xD7};
-DeviceAddress oilTempDigital = {0x28, 0xFF, 0xB5, 0x36, 0x2D, 0x04, 0x00, 0x2B};
-DeviceAddress intakeTempDigital = {0x28, 0xFF, 0xAF, 0x08, 0x2E, 0x04, 0x00, 0x53};
-DeviceAddress transTempDigital = {0x28, 0xFF, 0xD5, 0x33, 0x2B, 0x04, 0x00, 0x6A};
+DeviceAddress insideTempDigital = {0x28, 0xFF, 0x1B, 0x36, 0x2D, 0x04, 0x00, 0xBA}; // inside (cabin) temperature
+DeviceAddress outsideTempDigital = {0x28, 0xFF, 0xDF, 0x33, 0x2B, 0x04, 0x00, 0xD7}; // outside (exterior) temperature
+DeviceAddress oilTempDigital = {0x28, 0xFF, 0xB5, 0x36, 0x2D, 0x04, 0x00, 0x2B}; // oil temperature
+DeviceAddress intakeTempDigital = {0x28, 0xFF, 0xAF, 0x08, 0x2E, 0x04, 0x00, 0x53}; // intake temperature
+DeviceAddress transTempDigital = {0x28, 0xFF, 0xD5, 0x33, 0x2B, 0x04, 0x00, 0x6A}; // tranmission temperature
 
 // Encoder setup
-Encoder modeSwitch(encoderPin1, encoderPin2);
+Encoder modeSwitch(encoderPin1, encoderPin2); // create Encoder object
 
 // Display modes setup
 const byte modeMin = 1;
@@ -129,6 +130,7 @@ const byte modeLCDSetup = 15;
 const byte modeSystemSetup = 16;
 
 // hidden modes - not in normal rotation (inside menus, etc.)
+const byte modeEngineCycles = 90;
 const byte modeDisplacement = 91;
 const byte modeRefreshInterval = 92;
 const byte modeUseSI = 93;
@@ -163,15 +165,13 @@ byte currentSecond = 0;
 byte currentMonth = 1;
 byte currentDay = 1;
 int currentYear = 2014;
-// arrays to hold names of days of week and months of year
-char* daysOfWeek[] = {"Null", "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
-char* monthsOfYear[] = {"Null", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
 
 // default personalization values (changes stored in EEPROM)
 byte useSI = 0; // unit selector: 0 = SAE, 1 = SI
 byte lcdAutoDim = 0; // automatic brightness adjust: 0 = OFF, 1 = ON
 byte lcdBigFont = 1; // Big Font: 0 = OFF, 1 = ON
-byte engineCylinders = 8; // for tach calculation (pulses per revolution = cylinders / 2)
+byte engineCylinders = 8; // for tach calculation (pulses per revolution = 2 * cylinders / cycles)
+byte engineCycles = 4; // for tach calculation
 int displacement = 390; // (units of cu in) for MAFR calculations
 int refreshInterval = 750; // milliseconds between sensor updates
 
@@ -202,6 +202,7 @@ void setup()
     EEPROM.write(refreshIntervalAddress, 255);
     EEPROM.write(displacementAddress1, 255);
     EEPROM.write(displacementAddress2, 255);
+    EEPROM.write(engineCyclesAddress, 255);
     setTime(currentHour, currentMinute, currentSecond, currentDay, currentMonth, currentYear);
     Teensy3Clock.set(now());
   }
@@ -242,8 +243,12 @@ void setup()
   {
     displacement = EEPROM.read(displacementAddress1) * 256 + EEPROM.read(displacementAddress2); // int value is stored as 2 bytes
   }
+  if (EEPROM.read(engineCyclesAddress) < 255)
+  {
+    engineCycles = EEPROM.read(engineCyclesAddress);
+  }
   
-  // set the internal clock from the RTC
+  // set the internal clock from the Teensy RTC
   setSyncProvider(getTeensy3Time);
   // set time to default if RTC not set
   if (timeStatus() != timeSet)
@@ -259,7 +264,10 @@ void setup()
   pinMode(lcdLEDGreenPin, OUTPUT); // set lcdLEDGreenPin as OUTPUT
   pinMode(lcdLEDBluePin, OUTPUT); // set lcdLEDBluePin as OUTPUT
   
-  lcd.begin(16, 2); // setup lcd with 16 columns, 2 rows
+  Serial.begin(115200); // start serial connection at 115200 baud
+  
+  lcd.begin(16, 2); // set up lcd with 16 columns, 2 rows
+  bigNum.begin(); // set up BigNumbersFast
   
   // update LCD display values
   setRGBFromHue();
@@ -446,22 +454,22 @@ void loop()
   {
     lcd.clear();
     buttonPressed = false;
-    // set number of cylinders in increments of 2
+    // set number of cylinders in increments of 1
     byte previousCylinders = engineCylinders;
-    modeSwitch.write((engineCylinders / 2) * 4);
+    modeSwitch.write(engineCylinders * 4);
     // loop until button pressed
     while(!buttonPressed)
     {
-      engineCylinders = 2 * (modeSwitch.read() / 4);
-      if(engineCylinders < 2)
+      engineCylinders = modeSwitch.read() / 4;
+      if(engineCylinders < 1)
       {
-        engineCylinders = 2;
-        modeSwitch.write((engineCylinders / 2) * 4);
+        engineCylinders = 1;
+        modeSwitch.write(engineCylinders * 4);
       }
       else if (engineCylinders > 16)
       {
         engineCylinders = 16;
-        modeSwitch.write((engineCylinders / 2) * 4);
+        modeSwitch.write(engineCylinders * 4);
       }
       displayInfo(modeEngineCylinders, lcdBigFont);
     }
@@ -469,6 +477,32 @@ void loop()
     if (engineCylinders != previousCylinders)
     {
       EEPROM.write(engineCylindersAddress, engineCylinders);
+    }
+    buttonPressed = false;
+    lcd.clear();
+    // set number of cycles in increments of 2
+    byte previousCycles = engineCycles;
+    modeSwitch.write((engineCycles / 2) * 4);
+    // loop until button pressed
+    while(!buttonPressed)
+    {
+      engineCycles = 2 * (modeSwitch.read() / 4);
+      if(engineCycles < 2)
+      {
+        engineCycles = 2;
+        modeSwitch.write((engineCycles / 2) * 4);
+      }
+      else if (engineCycles > 4)
+      {
+        engineCycles = 4;
+        modeSwitch.write((engineCycles / 2) * 4);
+      }
+      displayInfo(modeEngineCycles, lcdBigFont);
+    }
+    // store new value in EEPROM if it changed
+    if (engineCycles != previousCycles)
+    {
+      EEPROM.write(engineCyclesAddress, engineCycles);
     }
     buttonPressed = false;
     lcd.clear();
@@ -694,13 +728,13 @@ void loop()
   {
     previousMillis = 0; // forces an immediate value update
     buttonPressed = false; 
-    if(!useSI)
+    if(useSI)
     {
-      useSI = 1;
+      useSI = 0;
     }
     else
     {
-      useSI = 0;
+      useSI = 1;
     }
     EEPROM.write(useSIAddress, useSI); // store new value to EEPROM
   }
@@ -751,7 +785,8 @@ void loop()
     setAutoBrightness(); 
     writeLCDValues(); // write LCD values
     // display info depending on mode and font size
-    displayInfo(mode, lcdBigFont);
+    // output data to serial connection
+    Serial.println(displayInfo(mode, lcdBigFont));
   }
 }
 
@@ -808,7 +843,7 @@ void setRGBFromHue()
 void setAutoBrightness()
 {
   // only do this if feature is enabled in setttings
-  if(lcdAutoDim == 1)
+  if(lcdAutoDim)
   {
     lcdBrightness = map(analogRead(autoDimPin), 0, 1023, 20, 100);
   }
@@ -871,7 +906,7 @@ float getOilPress()
   float VI = Vout * (R1 + R2) / R2; // solve for input Voltage
   float Rsender = VI * oilGaugeOhms / (regVoltage - VI); // solve for sensor resistance
   float pressure = 140.75 - 1.0199 * Rsender + 0.0018 * Rsender * Rsender; // solve for pressure based on calibration curve
-  pressure = max(pressure, 0); // constrain lower bound to 0
+  pressure = constrain(pressure, 0, 999); // deal with any errors that would cause value to be way outside of normal range
   return pressure; // return pressure in psi
 }
 
@@ -920,6 +955,7 @@ float getCoolantTemp()
   float VI = Vout * (R1 + R2) / R2; // solve for input Voltage
   float Rsender = VI * coolantGaugeOhms / (regVoltage - VI); // solve for sensor resistance
   float temp = pow(SHparamA + SHparamB * log(Rsender) + SHparamC * pow(log(Rsender), 3), -1) - 273.15; // solve for temperature based on calibration curve based on Steinhart–Hart equation
+  temp = constrain(temp, -99, 999); // deal with any errors that would cause value to be way outside of normal range
   return temp; // return temp in deg C
 }
 
@@ -941,7 +977,9 @@ float getLambda()
   }
   val += 5; // allows proper rounding due to using integer math
   val /= 10; // get average value
-  float lambda = (map(val, 0, 853, 680, 1360)) / 1000.0; // calculate lambda value avoiding limitations of map()
+  float Vout = val / 1023.0 * aRef; // convert 10-bit value to Voltage
+  float VI = Vout * (R1 + R2) / R2; // solve for input Voltage
+  float lambda = 0.136 * VI + 0.68;
   return lambda;
 }
 
@@ -972,15 +1010,16 @@ float getIntakePress()
   {
     pressure = 14.5 * VI - 14.5; // boost
   }
+  pressure = max(pressure, -14.7); // constrain to absolute vacuum
   return pressure;
 }
 
 // checks accumulated tach signal pulses and calculates engine speed
 // returns engine speed in RPM
-// Resolution: 120000/refreshInterval/engineCylinders RPM (for default values = 20 RPM)
+// Resolution: 30000 * engineCycles / refreshInterval / engineCylinders RPM (for default values = 20 RPM)
 int getRPM()
 {
-  int RPM = int(RPMpulses / float(engineCylinders / 2) * (60000.0 / float(refreshInterval))); // calculate RPM
+  int RPM = int(RPMpulses * (60000.0 / float(refreshInterval)) * engineCycles / engineCylinders / 2.0 ); // calculate RPM
   RPMpulses = 0; // reset pulse count to 0
   RPM = min(9999, RPM); // don't return value larger than 9999
   return RPM;
@@ -1022,9 +1061,10 @@ void pressButton()
 }
 
 // collects and displays sensor data on the LCD
+// returns: the value that it displayed
 // byte displayMode: the mode to display
 // boolean bigFont: sets if small or large font is used
-void displayInfo(byte displayMode, boolean bigFont)
+float displayInfo(byte displayMode, boolean bigFont)
 {
   switch (displayMode)
   {
@@ -1036,7 +1076,6 @@ void displayInfo(byte displayMode, boolean bigFont)
       currentMonth = month(currentTime);
       currentDay = day(currentTime);
       currentYear = year(currentTime);
-      byte currentDayOfWeek = weekday(currentTime);
       if (bigFont)
       {
         bigNum.displayLargeInt(currentHour, 0 , 2, false);
@@ -1046,7 +1085,7 @@ void displayInfo(byte displayMode, boolean bigFont)
         lcd.write(165); // dot symbol
         bigNum.displayLargeInt(currentMinute, 7, 2, true);
         lcd.setCursor(14, 1);
-        if(isAM())
+        if(isAM(currentTime))
         {
           lcd.write(65); // "A"
         }
@@ -1071,7 +1110,7 @@ void displayInfo(byte displayMode, boolean bigFont)
         }
         lcd.print(currentMinute);
         lcd.print(" ");
-        if(isAM())
+        if(isAM(currentTime))
         {
           lcd.write(65); // "A"
         }
@@ -1081,9 +1120,9 @@ void displayInfo(byte displayMode, boolean bigFont)
         }
         lcd.write(77); // "M"
         lcd.setCursor(0, 1);
-        lcd.print(daysOfWeek[currentDayOfWeek]);
+        lcd.print(dayShortStr(weekday(currentTime)));
         lcd.print(" ");
-        lcd.print(monthsOfYear[currentMonth]);
+        lcd.print(monthShortStr(currentMonth));
         lcd.print(" ");
         if(currentDay < 10)
         {
@@ -1093,6 +1132,7 @@ void displayInfo(byte displayMode, boolean bigFont)
         lcd.print(" ");
         lcd.print(currentYear);
       }
+      return(millis()); // return time since boot
       break;
     }
     case modeBattVoltage: // battery voltage
@@ -1100,8 +1140,7 @@ void displayInfo(byte displayMode, boolean bigFont)
       float battVoltage = getBattVoltage();
       if (bigFont)
       {
-        battVoltage *= 10;
-        int battVoltageInt = int(battVoltage + 0.5);
+        int battVoltageInt = int(battVoltage * 10 + 0.5);
         byte lastDigit = battVoltageInt % 10;
         battVoltageInt /= 10;
         bigNum.displayLargeInt(battVoltageInt, 0, 2, false);
@@ -1116,14 +1155,11 @@ void displayInfo(byte displayMode, boolean bigFont)
       {
         lcd.setCursor(0, 0);
         lcd.print("Battery Voltage");
-        lcd.setCursor(5, 1);
-        if (battVoltage < 10)
-        {
-          lcd.print(" ");
-        }
-        lcd.print(battVoltage, 1);
+        lcd.setCursor(3, 1);
+        displaySmallFloat(battVoltage, 1);
         lcd.print(" V");
       }
+      return battVoltage;
       break;
     }
     case modeOilPress: // oil pressure
@@ -1135,8 +1171,7 @@ void displayInfo(byte displayMode, boolean bigFont)
       }
       if (bigFont)
       {
-        oilPressure *= 10;
-        int oilPressureInt = int(oilPressure + 0.5);
+        int oilPressureInt = int(oilPressure * 10 + 0.5);
         byte lastDigit = oilPressureInt % 10;
         oilPressureInt /= 10;
         bigNum.displayLargeInt(oilPressureInt, 0, 3, false);
@@ -1145,38 +1180,23 @@ void displayInfo(byte displayMode, boolean bigFont)
         lcd.setCursor(9, 1);
         lcd.print(".");
         lcd.print(lastDigit);
-        if (useSI)
-        {
-          lcd.print(" bar");
-        }
-        else
-        {
-          lcd.print(" psi");
-        }
       }
       else
       {
         lcd.setCursor(2, 0);
         lcd.print("Oil Pressure");
         lcd.setCursor(3, 1);
-        if(oilPressure < 10)
-        {
-          lcd.print("  ");
-        }
-        else if(oilPressure < 100)
-        {
-          lcd.print(" ");
-        }
-        lcd.print(oilPressure, 1);
-        if (useSI)
-        {
-          lcd.print(" bar");
-        }
-        else
-        {
-          lcd.print(" psi");
-        }
+        displaySmallFloat(oilPressure, 1);
       }
+      if (useSI)
+      {
+        lcd.print(" bar");
+      }
+      else
+      {
+        lcd.print(" psi");
+      }
+      return oilPressure;
       break;
     }
     case modeCoolantTemp: // coolant temp
@@ -1199,19 +1219,23 @@ void displayInfo(byte displayMode, boolean bigFont)
         lcd.setCursor(10, 0);
         lcd.print("Engine");
         lcd.setCursor(10, 1);
-        lcd.write(char(223));
-        if (!useSI)
+        lcd.write(223);
+        if (useSI)
         {
-          lcd.write(70); // "F"
+          lcd.write(67); // "C"
         }
         else
         {
-          lcd.write(67); // "C"
+          lcd.write(70); // "F"
         }
         if (isNegative)
         {
           lcd.setCursor(0, 0);
-          if (currentTemp < 10)
+          if (currentTempInt < 2 && currentTempInt >= 1)
+          {
+            lcd.print("      ");
+          }
+          else if (currentTempInt < 10)
           {
             lcd.print("    ");
           }
@@ -1224,6 +1248,7 @@ void displayInfo(byte displayMode, boolean bigFont)
             lcd.print(" ");
           }
           lcd.print("-");
+          return -currentTemp;
         }
       }
       else
@@ -1231,30 +1256,19 @@ void displayInfo(byte displayMode, boolean bigFont)
         lcd.setCursor(2, 0);
         lcd.print("Coolant Temp");
         lcd.setCursor(4, 1);
-        if (currentTemp < 10 && currentTemp >= 0)
-        {
-          lcd.print("   ");
-        }
-        else if ((currentTemp < 100 && currentTemp >= 10) || (currentTemp < 0 && currentTemp > -10))
-        {
-          lcd.print("  ");
-        }
-        else if (currentTemp >= 100 || (currentTemp <= -10 && currentTemp > -100))
-        {
-          lcd.print(" ");
-        }
-        lcd.print(currentTemp, 0);
+        displaySmallFloat(currentTemp, 0);
         lcd.print(" ");
-        lcd.write(char(223)); // degree symbol
-        if (!useSI)
-        {
-          lcd.write(70); // "F"
-        }
-        else
+        lcd.write(223); // degree symbol
+        if (useSI)
         {
           lcd.write(67); // "C"
         }
+        else
+        {
+          lcd.write(70); // "F"
+        }
       }
+      return currentTemp;
       break;
     }
     case modeOutsideTemp: // outside temp
@@ -1277,19 +1291,23 @@ void displayInfo(byte displayMode, boolean bigFont)
         lcd.setCursor(10, 0);
         lcd.print("Out");
         lcd.setCursor(10, 1);
-        lcd.write(char(223));
-        if (!useSI)
+        lcd.write(223);
+        if (useSI)
         {
-          lcd.write(70); // "F"
+          lcd.write(67); // "C"
         }
         else
         {
-          lcd.write(67); // "C"
+          lcd.write(70); // "F"
         }
         if (isNegative)
         {
           lcd.setCursor(0, 0);
-          if (currentTemp < 10)
+          if (currentTempInt < 2 && currentTempInt >= 1)
+          {
+            lcd.print("      ");
+          }
+          else if (currentTempInt < 10)
           {
             lcd.print("    ");
           }
@@ -1302,6 +1320,8 @@ void displayInfo(byte displayMode, boolean bigFont)
             lcd.print(" ");
           }
           lcd.print("-");
+          sensors.requestTemperatures(); // request a temperature conversion
+          return -currentTemp;
         }
       }
       else
@@ -1309,31 +1329,20 @@ void displayInfo(byte displayMode, boolean bigFont)
         lcd.setCursor(2, 0);
         lcd.print("Outside Temp");
         lcd.setCursor(4, 1);
-        if (currentTemp < 10 && currentTemp >= 0)
-        {
-          lcd.print("   ");
-        }
-        else if ((currentTemp < 100 && currentTemp >= 10) || (currentTemp < 0 && currentTemp > -10))
-        {
-          lcd.print("  ");
-        }
-        else if (currentTemp >= 100 || (currentTemp <= -10 && currentTemp > -100))
-        {
-          lcd.print(" ");
-        }
-        lcd.print(currentTemp, 0);
+        displaySmallFloat(currentTemp, 0);
         lcd.print(" ");
-        lcd.write(char(223)); // degree symbol
-        if (!useSI)
-        {
-          lcd.write(70); // "F"
-        }
-        else
+        lcd.write(223); // degree symbol
+        if (useSI)
         {
           lcd.write(67); // "C"
         }
+        else
+        {
+          lcd.write(70); // "F"
+        }
       }
       sensors.requestTemperatures(); // request a temperature conversion
+      return currentTemp;
       break;
     }
     case modeInsideTemp: // inside temp
@@ -1356,19 +1365,23 @@ void displayInfo(byte displayMode, boolean bigFont)
         lcd.setCursor(10, 0);
         lcd.print("Cabin");
         lcd.setCursor(10, 1);
-        lcd.write(char(223));
-        if (!useSI)
+        lcd.write(223);
+        if (useSI)
         {
-          lcd.write(70); // "F"
+          lcd.write(67); // "C"
         }
         else
         {
-          lcd.write(67); // "C"
+          lcd.write(70); // "F"
         }
         if (isNegative)
         {
           lcd.setCursor(0, 0);
-          if (currentTemp < 10)
+          if (currentTempInt < 2 && currentTempInt >= 1)
+          {
+            lcd.print("      ");
+          }
+          else if (currentTempInt < 10)
           {
             lcd.print("    ");
           }
@@ -1381,6 +1394,8 @@ void displayInfo(byte displayMode, boolean bigFont)
             lcd.print(" ");
           }
           lcd.print("-");
+          sensors.requestTemperatures(); // request a temperature conversion
+          return -currentTemp;
         }
       }
       else
@@ -1388,31 +1403,20 @@ void displayInfo(byte displayMode, boolean bigFont)
         lcd.setCursor(2, 0);
         lcd.print("Inside Temp");
         lcd.setCursor(4, 1);
-        if (currentTemp < 10 && currentTemp >= 0)
-        {
-          lcd.print("   ");
-        }
-        else if ((currentTemp < 100 && currentTemp >= 10) || (currentTemp < 0 && currentTemp > -10))
-        {
-          lcd.print("  ");
-        }
-        else if (currentTemp >= 100 || (currentTemp <= -10 && currentTemp > -100))
-        {
-          lcd.print(" ");
-        }
-        lcd.print(currentTemp, 0);
+        displaySmallFloat(currentTemp, 0);
         lcd.print(" ");
-        lcd.write(char(223)); // degree symbol
-        if (!useSI)
-        {
-          lcd.write(70); // "F"
-        }
-        else
+        lcd.write(223); // degree symbol
+        if (useSI)
         {
           lcd.write(67); // "C"
         }
+        else
+        {
+          lcd.write(70); // "F"
+        }
       }
       sensors.requestTemperatures(); // request a temperature conversion
+      return currentTemp;
       break;
     }
     case modeOilTemp: // oil temp
@@ -1435,19 +1439,23 @@ void displayInfo(byte displayMode, boolean bigFont)
         lcd.setCursor(10, 0);
         lcd.print("Oil");
         lcd.setCursor(10, 1);
-        lcd.write(char(223));
-        if (!useSI)
+        lcd.write(223);
+        if (useSI)
         {
-          lcd.write(70); // "F"
+          lcd.write(67); // "C"
         }
         else
         {
-          lcd.write(67); // "C"
+          lcd.write(70); // "F"
         }
         if (isNegative)
         {
           lcd.setCursor(0, 0);
-          if (currentTemp < 10)
+          if (currentTempInt < 2 && currentTempInt >= 1)
+          {
+            lcd.print("      ");
+          }
+          else if (currentTempInt < 10)
           {
             lcd.print("    ");
           }
@@ -1460,6 +1468,8 @@ void displayInfo(byte displayMode, boolean bigFont)
             lcd.print(" ");
           }
           lcd.print("-");
+          sensors.requestTemperatures(); // request a temperature conversion
+          return -currentTemp;
         }
       }
       else
@@ -1467,31 +1477,20 @@ void displayInfo(byte displayMode, boolean bigFont)
         lcd.setCursor(4, 0);
         lcd.print("Oil Temp");
         lcd.setCursor(4, 1);
-        if (currentTemp < 10 && currentTemp >= 0)
-        {
-          lcd.print("   ");
-        }
-        else if ((currentTemp < 100 && currentTemp >= 10) || (currentTemp < 0 && currentTemp > -10))
-        {
-          lcd.print("  ");
-        }
-        else if (currentTemp >= 100 || (currentTemp <= -10 && currentTemp > -100))
-        {
-          lcd.print(" ");
-        }
-        lcd.print(currentTemp, 0);
+        displaySmallFloat(currentTemp, 0);
         lcd.print(" ");
-        lcd.write(char(223)); // degree symbol
-        if (!useSI)
-        {
-          lcd.write(70); // "F"
-        }
-        else
+        lcd.write(223); // degree symbol
+        if (useSI)
         {
           lcd.write(67); // "C"
         }
+        else
+        {
+          lcd.write(70); // "F"
+        }
       }
       sensors.requestTemperatures(); // request a temperature conversion
+      return currentTemp;
       break;
     }
     case modeTransTemp: // transmission temp
@@ -1514,19 +1513,23 @@ void displayInfo(byte displayMode, boolean bigFont)
         lcd.setCursor(10, 0);
         lcd.print("Trans.");
         lcd.setCursor(10, 1);
-        lcd.write(char(223));
-        if (!useSI)
+        lcd.write(223);
+        if (useSI)
         {
-          lcd.write(70); // "F"
+          lcd.write(67); // "C"
         }
         else
         {
-          lcd.write(67); // "C"
+          lcd.write(70); // "F"
         }
         if (isNegative)
         {
           lcd.setCursor(0, 0);
-          if (currentTemp < 10)
+          if (currentTempInt < 2 && currentTempInt >= 1)
+          {
+            lcd.print("      ");
+          }
+          else if (currentTempInt < 10)
           {
             lcd.print("    ");
           }
@@ -1539,6 +1542,8 @@ void displayInfo(byte displayMode, boolean bigFont)
             lcd.print(" ");
           }
           lcd.print("-");
+          sensors.requestTemperatures(); // request a temperature conversion
+          return -currentTemp;
         }
       }
       else
@@ -1546,31 +1551,20 @@ void displayInfo(byte displayMode, boolean bigFont)
         lcd.setCursor(2, 0);
         lcd.print("Trans. Temp");
         lcd.setCursor(4, 1);
-        if (currentTemp < 10 && currentTemp >= 0)
-        {
-          lcd.print("   ");
-        }
-        else if ((currentTemp < 100 && currentTemp >= 10) || (currentTemp < 0 && currentTemp > -10))
-        {
-          lcd.print("  ");
-        }
-        else if (currentTemp >= 100 || (currentTemp <= -10 && currentTemp > -100))
-        {
-          lcd.print(" ");
-        }
-        lcd.print(currentTemp, 0);
+        displaySmallFloat(currentTemp, 0);
         lcd.print(" ");
-        lcd.write(char(223)); // degree symbol
-        if (!useSI)
-        {
-          lcd.write(70); // "F"
-        }
-        else
+        lcd.write(223); // degree symbol
+        if (useSI)
         {
           lcd.write(67); // "C"
         }
+        else
+        {
+          lcd.write(70); // "F"
+        }
       }
       sensors.requestTemperatures();
+      return currentTemp;
       break;
     }
     case modeIntakeTemp: // intake temp
@@ -1593,19 +1587,23 @@ void displayInfo(byte displayMode, boolean bigFont)
         lcd.setCursor(10, 0);
         lcd.print("Intake");
         lcd.setCursor(10, 1);
-        lcd.write(char(223)); // degree symbol
-        if (!useSI)
+        lcd.write(223); // degree symbol
+        if (useSI)
         {
-          lcd.write(70); // "F"
+          lcd.write(67); // "C"
         }
         else
         {
-          lcd.write(67); // "C"
+          lcd.write(70); // "F"
         }
         if (isNegative)
         {
           lcd.setCursor(0, 0);
-          if (currentTemp < 10)
+          if (currentTempInt < 2 && currentTempInt >= 1)
+          {
+            lcd.print("      ");
+          }
+          else if (currentTempInt < 10)
           {
             lcd.print("    ");
           }
@@ -1618,6 +1616,8 @@ void displayInfo(byte displayMode, boolean bigFont)
             lcd.print(" ");
           }
           lcd.print("-");
+          sensors.requestTemperatures(); // request a temperature conversion
+          return -currentTemp;
         }
       }
       else
@@ -1625,31 +1625,20 @@ void displayInfo(byte displayMode, boolean bigFont)
         lcd.setCursor(2, 0);
         lcd.print("Intake Temp");
         lcd.setCursor(4, 1);
-        if (currentTemp < 10 && currentTemp >= 0)
-        {
-          lcd.print("   ");
-        }
-        else if ((currentTemp < 100 && currentTemp >= 10) || (currentTemp < 0 && currentTemp > -10))
-        {
-          lcd.print("  ");
-        }
-        else if (currentTemp >= 100 || (currentTemp <= -10 && currentTemp > -100))
-        {
-          lcd.print(" ");
-        }
-        lcd.print(currentTemp, 0);
+        displaySmallFloat(currentTemp, 0);
         lcd.print(" ");
-        lcd.write(char(223)); // degree symbol
-        if (!useSI)
-        {
-          lcd.write(70); // "F"
-        }
-        else
+        lcd.write(223); // degree symbol
+        if (useSI)
         {
           lcd.write(67); // "C"
         }
+        else
+        {
+          lcd.write(70); // "F"
+        }
       }
       sensors.requestTemperatures(); // request a temperature conversion
+      return currentTemp;
       break;
     }
     case modeTach: // engine (angular) speed
@@ -1657,30 +1646,19 @@ void displayInfo(byte displayMode, boolean bigFont)
       int currentRPM = getRPM();
       if (bigFont)
       {
-        bigNum.displayLargeInt(currentRPM, 0, 4, false);
         lcd.setCursor(13, 1);
         lcd.print("RPM");
+        bigNum.displayLargeInt(currentRPM, 0, 4, false);
       }
       else
       {
         lcd.setCursor(2, 0);
         lcd.print("Engine Speed");
         lcd.setCursor(4, 1);
-        if(currentRPM < 10)
-        {
-          lcd.print("   ");
-        }
-        else if(currentRPM < 100)
-        {
-          lcd.print("  ");
-        }
-        else if(currentRPM < 1000)
-        {
-          lcd.print(" ");
-        }
-        lcd.print(currentRPM);
+        displaySmallInt(currentRPM);
         lcd.print(" RPM");
       }
+      return currentRPM;
       break;
     }
     case modeAFRatio:
@@ -1688,8 +1666,7 @@ void displayInfo(byte displayMode, boolean bigFont)
       float currentAFRatio = getLambda() * 14.7; // convert to Air/Fuel Mass Ratio (Air/Gasoline)
       if (bigFont)
       {
-        currentAFRatio *= 10;
-        int currentAFRatioInt = int(currentAFRatio + 0.5);
+        int currentAFRatioInt = int(currentAFRatio * 10 + 0.5);
         byte lastDigit = currentAFRatioInt % 10;
         currentAFRatioInt /= 10;
         bigNum.displayLargeInt(currentAFRatioInt, 0, 2, false);
@@ -1707,14 +1684,15 @@ void displayInfo(byte displayMode, boolean bigFont)
         lcd.setCursor(5, 1);
         lcd.print(currentAFRatio, 1);
       }
+      return currentAFRatio;
       break;
     }
-    case modeIntakePress:
+    case modeIntakePress: // intake pressure (MAP)
     {
       float currentIntakePress = getIntakePress();
       if (useSI)
       {
-        currentIntakePress *=  0.06895; // convert to bar
+        currentIntakePress *= 0.06895; // convert to bar
       }
       if (bigFont)
       {
@@ -1724,8 +1702,7 @@ void displayInfo(byte displayMode, boolean bigFont)
           isNegative = true;
           currentIntakePress = abs(currentIntakePress);
         }
-        currentIntakePress *= 10;
-        int currentIntakePressInt = int(currentIntakePress + 0.5);
+        int currentIntakePressInt = int(currentIntakePress * 10 + 0.5);
         byte lastDigit = currentIntakePressInt % 10;
         currentIntakePressInt /= 10;
         bigNum.displayLargeInt(currentIntakePressInt, 0, 2, false);
@@ -1741,23 +1718,27 @@ void displayInfo(byte displayMode, boolean bigFont)
         lcd.setCursor(6, 1);
         lcd.print(".");
         lcd.print(lastDigit);
-        if (!useSI)
+        if (useSI)
         {
-          lcd.print(" psi");
+          lcd.print(" bar");
         }
         else
         {
-          lcd.print(" bar");
+          lcd.print(" psi");
         }
         if (isNegative)
         {
           lcd.setCursor(0, 0);
-          currentIntakePress /= 10;
-          if(currentIntakePress < 10)
+          if (currentIntakePressInt < 2 && currentIntakePressInt >= 1)
+          {
+            lcd.print("   ");
+          }
+          else if (currentIntakePressInt < 10)
           {
             lcd.print(" ");
           }
           lcd.print("-");
+          return -currentIntakePress;
         }
       }
       else
@@ -1772,24 +1753,17 @@ void displayInfo(byte displayMode, boolean bigFont)
           lcd.print("Boost ");
         }
         lcd.setCursor(3, 1);
-        if (currentIntakePress < 10 && currentIntakePress >= 0)
-        {
-          lcd.print("  ");
-        }
-        else if ((currentIntakePress < 0 && currentIntakePress > -10) || currentIntakePress >= 10)
-        {
-          lcd.print(" ");
-        }
-        lcd.print(currentIntakePress, 1);
-        if (!useSI)
-        {
-          lcd.print(" psi");
-        }
-        else
+        displaySmallFloat(currentIntakePress, 1);
+        if (useSI)
         {
           lcd.print(" bar");
         }
+        else
+        {
+          lcd.print(" psi");
+        }
       }
+      return currentIntakePress;
       break;
     }
     case modeMAFR:
@@ -1803,45 +1777,34 @@ void displayInfo(byte displayMode, boolean bigFont)
       {
         lcd.setCursor(11, 0);
         lcd.print("MAFR");
-        currentMAFR *= 10;
-        int currentMAFRInt = int(currentMAFR + 0.5);
+        int currentMAFRInt = int(currentMAFR * 10 + 0.5);
         byte lastDigit = currentMAFRInt % 10;
         currentMAFRInt /= 10;
         bigNum.displayLargeInt(currentMAFRInt, 0, 2, false);
         lcd.setCursor(6, 1);
         lcd.print(".");
-        lcd.print(lastDigit);  
-        if (!useSI)
-        {
-          lcd.print("  lb/min");
-        }
-        else
-        {
-          lcd.print("  kg/min");
-        }
+        lcd.print(lastDigit);
+        lcd.print(" "); 
       }
       else
       {
         lcd.setCursor(1, 0);
         lcd.print("Mass air flow");
         lcd.setCursor(2, 1);  
-        if (currentMAFR < 10)
-        {
-          lcd.print(" ");
-        }
-        lcd.print(currentMAFR, 1);
-        if (!useSI)
-        {
-          lcd.print(" lb/min");
-        }
-        else
-        {
-          lcd.print(" kg/min");
-        }
+        displaySmallFloat(currentMAFR, 1);
       }
+      if (useSI)
+      {
+        lcd.print(" kg/min");
+      }
+      else
+      {
+        lcd.print(" lb/min");
+      }
+      return currentMAFR;
       break;
     }
-    case modeFuelLevel: //  Fuel Level
+    case modeFuelLevel: // Fuel Level
     {
       float fuelLevel = getFuelLevel();
       if (bigFont)
@@ -1850,25 +1813,17 @@ void displayInfo(byte displayMode, boolean bigFont)
         bigNum.displayLargeInt(fuelLevel, 0, 3, false);
         lcd.setCursor(10, 0);
         lcd.print("Fuel");
-        lcd.setCursor(10, 1);
-        lcd.print("%");
+        lcd.setCursor(9, 1);
       }
       else
       {
         lcd.setCursor(3, 0);
         lcd.print("Fuel Level");
-        lcd.setCursor(5, 1);
-        if (fuelLevel < 10)
-        {
-          lcd.print("  ");
-        }
-        else if (fuelLevel < 100)
-        {
-          lcd.print(" ");
-        }
-        lcd.print(fuelLevel, 0);
-        lcd.print(" %");
+        lcd.setCursor(4, 1);
+        displaySmallFloat(fuelLevel, 0);
       }
+      lcd.print(" %");
+      return fuelLevel;
       break;
     }
     case modeLCDSetup: // Display Settings
@@ -1877,6 +1832,7 @@ void displayInfo(byte displayMode, boolean bigFont)
       lcd.print("Display");
       lcd.setCursor(4, 1);
       lcd.print("Settings");
+      return 0;
       break;
     }
     case modeSystemSetup: // System Settings
@@ -1885,6 +1841,27 @@ void displayInfo(byte displayMode, boolean bigFont)
       lcd.print("System");
       lcd.setCursor(4, 1);
       lcd.print("Settings");
+      return 0;
+      break;
+    }
+    case modeEngineCycles:
+    {
+      if (bigFont)
+      {
+        lcd.setCursor(8, 0);
+        lcd.print("Engine");
+        lcd.setCursor(8, 1);
+        lcd.print("Cycles");
+        bigNum.displayLargeInt(engineCycles, 0, 2, false);
+      }
+      else
+      {
+        lcd.setCursor(0, 0);
+        lcd.print("Engine Cylinders");
+        lcd.setCursor(4, 1);
+        displaySmallInt(engineCylinders);
+      }
+      return engineCycles;
       break;
     }
     case modeDisplacement:
@@ -1896,6 +1873,7 @@ void displayInfo(byte displayMode, boolean bigFont)
       lcd.print(" ci  ");
       lcd.print(displacement / 61.024, 2);
       lcd.print(" L");
+      return displacement;
       break;
     }
     case modeRefreshInterval:
@@ -1903,12 +1881,9 @@ void displayInfo(byte displayMode, boolean bigFont)
       lcd.setCursor(0, 0);
       lcd.print("Update Interval");
       lcd.setCursor(4, 1);
-      if(refreshInterval < 1000)
-      {
-        lcd.print(" ");
-      }
-      lcd.print(refreshInterval);
+      displaySmallInt(refreshInterval);
       lcd.print(" ms");
+      return refreshInterval;
       break;
     }
     case modeUseSI: // unit system
@@ -1916,62 +1891,53 @@ void displayInfo(byte displayMode, boolean bigFont)
       lcd.setCursor(2, 0);
       lcd.print("Unit System");
       lcd.setCursor(6, 1);
-      if(!useSI)
-      {
-        lcd.print("SAE");
-      }
-      else
+      if(useSI)
       {
         lcd.print(" SI");
       }
+      else
+      {
+        lcd.print("SAE");
+      }
+      return useSI;
       break;
     }
     case modeEngineCylinders:
     {
       if (bigFont)
       {
-        bigNum.displayLargeInt(engineCylinders, 0, 2, false);
         lcd.setCursor(8, 0);
         lcd.print("Engine");
         lcd.setCursor(7, 1);
         lcd.print("Cylinders");
+        bigNum.displayLargeInt(engineCylinders, 0, 2, false);
       }
       else
       {
         lcd.setCursor(0, 0);
         lcd.print("Engine Cylinders");
-        lcd.setCursor(7, 1);
-        if (engineCylinders < 10)
-        {
-          lcd.print(" ");
-        }
-        lcd.print(engineCylinders);
+        lcd.setCursor(4, 1);
+        displaySmallInt(engineCylinders);
       }
+      return engineCylinders;
       break;
     }
     case modeLCDColor:
     {
       if (bigFont)
       {
-        bigNum.displayLargeInt(lcdHue, 0, 3, false);
         lcd.setCursor(10, 1);
         lcd.print("Color");
+        bigNum.displayLargeInt(lcdHue, 0, 3, false);
       }
       else
       {
         lcd.setCursor(3, 0);
         lcd.print("LCD Color");
-        lcd.setCursor(6, 1);
-        if(lcdHue < 10)
-        {
-          lcd.print("  ");
-        }
-        else if (lcdHue < 100)
-        {
-          lcd.print(" ");
-        }
-        lcd.print(lcdHue);
+        lcd.setCursor(5, 1);
+        displaySmallInt(lcdHue);
       }
+      return lcdHue;
       break;
     }
     case modeBigFont:
@@ -1985,62 +1951,49 @@ void displayInfo(byte displayMode, boolean bigFont)
       }
       else
       {
-        lcd.print("OFF     ");
+        lcd.print("OFF");
       }
+      return lcdBigFont;
       break;
     }
     case modeLCDBrightness: // LCD brightness
     {
       if (bigFont)
       {
-        bigNum.displayLargeInt(lcdBrightness, 0, 3, false);
         lcd.setCursor(10, 0);
         lcd.print("Bright");
         lcd.setCursor(10, 1);
         lcd.print("ness");
+        bigNum.displayLargeInt(lcdBrightness, 0, 3, false);
       }
       else
       {
         lcd.setCursor(1, 0);
         lcd.print("LCD Brightness");
-        lcd.setCursor(6, 1);
-        if (lcdBrightness < 10)
-        {
-          lcd.print("  ");
-        }
-        else if (lcdBrightness < 100)
-        {  
-          lcd.print(" ");
-        }
-        lcd.print(lcdBrightness);
+        lcd.setCursor(5, 1);
+        displaySmallInt(lcdBrightness);
       }
+      return lcdBrightness;
       break;
     }
     case modeLCDContrast: // LCD contrast
     {
       if (bigFont)
       {
-        bigNum.displayLargeInt(lcdContrast, 0, 3, false);
         lcd.setCursor(10, 0);
         lcd.print("Con");
         lcd.setCursor(10, 1);
         lcd.print("trast");
+        bigNum.displayLargeInt(lcdContrast, 0, 3, false);
       }
       else
       {
         lcd.setCursor(2, 0);
         lcd.print("LCD Contrast");
-        lcd.setCursor(6, 1);
-        if (lcdContrast < 10)
-        {
-          lcd.print("  ");
-        }
-        else if (lcdContrast < 100)
-        {  
-          lcd.print(" ");
-        }
-        lcd.print(lcdContrast);
+        lcd.setCursor(5, 1);
+        displaySmallInt(lcdContrast);
       }
+      return lcdContrast;
       break;
     }
     case modeLCDAutoDim: // LCD AutoDim ON/OFF
@@ -2056,7 +2009,49 @@ void displayInfo(byte displayMode, boolean bigFont)
       {
         lcd.print("OFF");
       }
+      return lcdAutoDim;
       break;
     }
   }
+}
+
+// function that displays a float to the LCD. Maintains position of decimal point.
+// float n: the number to display (from -999.99 to 9999.99)
+// byte digits: number of digits after decimal point to display
+void displaySmallFloat(float n, byte digits)
+{
+  n = constrain(n, -999.99, 9999.99);
+  if (n < 10 && n >= 0)
+  {
+    lcd.print("   ");
+  }
+  else if ((n < 100 && n >= 10) || (n < 0 && n > -10))
+  {
+    lcd.print("  ");
+  }
+  else if ((n < 1000 && n >= 100) || (n <= -10 && n > -100))
+  {
+    lcd.print(" ");
+  }
+  lcd.print(n, digits);
+}
+
+// function that displays an integer to the LCD. Maintains position of ones place.
+// int n: the number to display (from -999to 9999)
+void displaySmallInt(int n)
+{
+  n = constrain(n, -999, 9999);
+  if (n < 10 && n >= 0)
+  {
+    lcd.print("   ");
+  }
+  else if ((n < 100 && n >= 10) || (n < 0 && n > -10))
+  {
+    lcd.print("  ");
+  }
+  else if ((n < 1000 && n >= 100) || (n <= -10 && n > -100))
+  {
+    lcd.print(" ");
+  }
+  lcd.print(n);
 }
