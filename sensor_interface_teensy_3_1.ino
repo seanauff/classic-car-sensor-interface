@@ -171,7 +171,7 @@ byte useSI = 0; // unit selector: 0 = SAE, 1 = SI
 byte lcdAutoDim = 0; // automatic brightness adjust: 0 = OFF, 1 = ON
 byte lcdBigFont = 1; // Big Font: 0 = OFF, 1 = ON
 byte engineCylinders = 8; // for tach calculation (pulses per revolution = 2 * cylinders / cycles)
-byte engineCycles = 4; // for tach calculation
+byte engineCycles = 4; // for tach calculation 
 int displacement = 390; // (units of cu in) for MAFR calculations
 int refreshInterval = 750; // milliseconds between sensor updates
 
@@ -460,7 +460,7 @@ void loop()
     // loop until button pressed
     while(!buttonPressed)
     {
-      engineCylinders = modeSwitch.read() / 4;
+      engineCylinders = (modeSwitch.read() / 4);
       if(engineCylinders < 1)
       {
         engineCylinders = 1;
@@ -856,9 +856,9 @@ void writeLCDValues()
   analogWrite(lcdContrastPin, map(lcdContrast, 0, 100, 255, 0));
   
   // modify RBG values based on current brightness
-  int r = map(lcdLEDRed, 0, 255, 0, lcdBrightness);
-  int g = map(lcdLEDGreen, 0, 255, 0, lcdBrightness);
-  int b = map(lcdLEDBlue, 0, 255, 0, lcdBrightness);
+  byte r = map(lcdLEDRed, 0, 255, 0, lcdBrightness);
+  byte g = map(lcdLEDGreen, 0, 255, 0, lcdBrightness);
+  byte b = map(lcdLEDBlue, 0, 255, 0, lcdBrightness);
   // set PWM values accordingly
   analogWrite(lcdLEDRedPin, map(r, 0, 100, 0, 255));
   analogWrite(lcdLEDGreenPin, map(g, 0, 100, 0, 200)); // compensate for LED brightness differences
