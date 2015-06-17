@@ -5,7 +5,7 @@
   
   GitHub project page: https://github.com/seanauff/classic-car-sensor-interface
   
-  Copyright (C) 2014 Sean Auffinger
+  Copyright (C) 2014-2015 Sean Auffinger
  
   This program is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
